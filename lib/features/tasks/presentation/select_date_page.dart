@@ -28,6 +28,8 @@ class _SelectDatePageState extends State<SelectDatePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select Date'),
@@ -38,11 +40,17 @@ class _SelectDatePageState extends State<SelectDatePage> {
         elevation: 0,
       ),
       body: Container(
+        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.purple.shade800, Colors.purple.shade600],
+            colors: isDarkMode
+                ? const [
+                    Color.fromARGB(255, 3, 1, 59),
+                    Color.fromARGB(255, 41, 28, 114),
+                  ]
+                : [Colors.purple.shade800, Colors.purple.shade600],
           ),
         ),
         child: SafeArea(
@@ -55,11 +63,18 @@ class _SelectDatePageState extends State<SelectDatePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      // ✅ เปลี่ยนสี card ตามธีม
+                      color: isDarkMode
+                          ? const Color.fromARGB(255, 41, 28, 114)
+                              .withOpacity(0.6)
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.2),
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withOpacity(0.2),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -101,15 +116,21 @@ class _SelectDatePageState extends State<SelectDatePage> {
                         titleTextStyle: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.purple.shade800,
+                          color: isDarkMode
+                              ? Colors.white
+                              : Colors.purple.shade800,
                         ),
                         leftChevronIcon: Icon(
                           Icons.chevron_left,
-                          color: Colors.purple.shade800,
+                          color: isDarkMode
+                              ? Colors.white
+                              : Colors.purple.shade800,
                         ),
                         rightChevronIcon: Icon(
                           Icons.chevron_right,
-                          color: Colors.purple.shade800,
+                          color: isDarkMode
+                              ? Colors.white
+                              : Colors.purple.shade800,
                         ),
                       ),
                       calendarStyle: CalendarStyle(
@@ -149,19 +170,27 @@ class _SelectDatePageState extends State<SelectDatePage> {
                           shape: BoxShape.circle,
                         ),
                         defaultTextStyle: TextStyle(
-                          color: Colors.grey.shade800,
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.7)
+                              : Colors.grey.shade800,
                         ),
                         // ✅ Outside Days
                         outsideTextStyle: TextStyle(
-                          color: Colors.grey.shade400,
+                          color: isDarkMode
+                              ? Colors.grey.shade600
+                              : Colors.grey.shade400,
                         ),
-                        // ✅ Disabled Days (ที่ไม่ใช่เดือนนี้)
+                        // ✅ Disabled Days
                         disabledTextStyle: TextStyle(
-                          color: Colors.grey.shade300,
+                          color: isDarkMode
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade300,
                         ),
                         // ✅ Weekend
                         weekendTextStyle: TextStyle(
-                          color: Colors.grey.shade800,
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.7)
+                              : Colors.grey.shade800,
                         ),
                         // ✅ Holidays/Events
                         holidayDecoration: BoxDecoration(
@@ -175,12 +204,16 @@ class _SelectDatePageState extends State<SelectDatePage> {
                       ),
                       daysOfWeekStyle: DaysOfWeekStyle(
                         weekdayStyle: TextStyle(
-                          color: Colors.purple.shade800,
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.8)
+                              : Colors.purple.shade800,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
                         weekendStyle: TextStyle(
-                          color: Colors.orange.shade600,
+                          color: isDarkMode
+                              ? Colors.orange.shade300
+                              : Colors.orange.shade600,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
                         ),
@@ -201,7 +234,10 @@ class _SelectDatePageState extends State<SelectDatePage> {
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: isDarkMode
+                          ? const Color.fromARGB(255, 41, 28, 114)
+                              .withOpacity(0.6)
+                          : Colors.white.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: Colors.white.withOpacity(0.2),
@@ -209,10 +245,10 @@ class _SelectDatePageState extends State<SelectDatePage> {
                     ),
                     child: Column(
                       children: [
-                        const Text(
+                        Text(
                           'Selected Date',
                           style: TextStyle(
-                            color: Colors.white70,
+                            color: Colors.white.withOpacity(0.7),
                             fontSize: 14,
                           ),
                         ),
@@ -238,8 +274,10 @@ class _SelectDatePageState extends State<SelectDatePage> {
                           ),
                           child: Text(
                             _getDayDescription(_selectedDate),
-                            style: const TextStyle(
-                              color: Colors.black87,
+                            style: TextStyle(
+                              color: isDarkMode
+                                  ? Colors.black87
+                                  : Colors.black87,
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
                             ),
@@ -259,8 +297,9 @@ class _SelectDatePageState extends State<SelectDatePage> {
                         child: ElevatedButton(
                           onPressed: () => Navigator.pop(context),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Colors.white.withOpacity(0.15),
+                            backgroundColor: isDarkMode
+                                ? Colors.white.withOpacity(0.12)
+                                : Colors.white.withOpacity(0.15),
                             side: BorderSide(
                               color: Colors.white.withOpacity(0.3),
                             ),
@@ -292,10 +331,12 @@ class _SelectDatePageState extends State<SelectDatePage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Select',
                             style: TextStyle(
-                              color: Colors.black87,
+                              color: isDarkMode
+                                  ? Colors.black87
+                                  : Colors.black87,
                               fontWeight: FontWeight.w600,
                             ),
                           ),

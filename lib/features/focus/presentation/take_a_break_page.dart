@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'stay_focused_page.dart';
 
 class TakeABreakPage extends StatefulWidget {
@@ -17,12 +18,27 @@ class TakeABreakPage extends StatefulWidget {
 class _TakeABreakPageState extends State<TakeABreakPage> {
   late int _remainingSeconds;
   late Timer _timer;
+  late int _breakTime;
 
   @override
   void initState() {
     super.initState();
+    _loadBreakTimeFromSettings();
     _remainingSeconds = widget.breakMinutes * 60;
     _startTimer();
+  }
+
+  Future<void> _loadBreakTimeFromSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _breakTime = prefs.getInt('breakTime') ?? 5;
+      });
+    } catch (e) {
+      setState(() {
+        _breakTime = 5;
+      });
+    }
   }
 
   void _startTimer() {
@@ -69,12 +85,16 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
 
     return Scaffold(
       body: Container(
+        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: isDarkMode
-                ? [Colors.purple.shade800, Colors.purple.shade600]
+                ? const [
+                    Color.fromARGB(255, 3, 1, 59),
+                    Color.fromARGB(255, 41, 28, 114),
+                  ]
                 : [Colors.orange.shade400, Colors.orange.shade200],
           ),
         ),
@@ -110,8 +130,9 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
                   height: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ✅ เปลี่ยนสี background ตามธีม
                     color: isDarkMode
-                        ? Colors.white.withOpacity(0.1)
+                        ? Colors.white.withOpacity(0.08)
                         : Colors.black.withOpacity(0.05),
                   ),
                   child: Center(
@@ -174,7 +195,7 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: isDarkMode
-                                ? Colors.white.withOpacity(0.15)
+                                ? Colors.white.withOpacity(0.12)
                                 : Colors.black.withOpacity(0.1),
                             side: BorderSide(
                               color: isDarkMode
@@ -189,7 +210,9 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
                           child: Text(
                             'Skip',
                             style: TextStyle(
-                              color: isDarkMode ? Colors.white : Colors.black87,
+                              color: isDarkMode
+                                  ? Colors.white
+                                  : Colors.black87,
                               fontWeight: FontWeight.w600,
                               fontSize: 16,
                             ),
@@ -236,8 +259,10 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
         currentIndex: 0,
         onTap: (index) {
           if (index == 1) {
+            _timer.cancel();
             Navigator.of(context).pushNamed('/home');
           } else if (index == 2) {
+            _timer.cancel();
             Navigator.of(context).pushNamed('/profile');
           }
         },

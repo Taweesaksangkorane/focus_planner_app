@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../data/task_model.dart';
 import '../data/task_repository.dart';
 import '../../focus/presentation/stay_focused_page.dart';
@@ -27,7 +28,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   void initState() {
     super.initState();
     _currentTask = widget.task;
-    _repository = TaskRepositoryImpl();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _repository = TaskRepositoryImpl(userId: user.uid);
+    }
     _loadFocusTimeFromSettings();
   }
 
@@ -55,12 +59,16 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
     return Scaffold(
       body: Container(
+        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: isDarkMode
-                ? [Colors.purple.shade800, Colors.purple.shade600]
+                ? const [
+                    Color.fromARGB(255, 3, 1, 59),
+                    Color.fromARGB(255, 41, 28, 114),
+                  ]
                 : [Colors.orange.shade400, Colors.orange.shade200],
           ),
         ),
@@ -75,7 +83,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       height: 120,
                       decoration: BoxDecoration(
                         color: isDarkMode
-                            ? Colors.purple.shade700
+                            ? const Color.fromARGB(255, 41, 28, 114)
                             : Colors.orange.shade300,
                       ),
                       child: CustomPaint(
@@ -190,6 +198,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
+                          // ✅ เปลี่ยนสี container ตามธีม
                           color: isDarkMode
                               ? Colors.white.withOpacity(0.08)
                               : Colors.black.withOpacity(0.05),
@@ -228,6 +237,97 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       ),
                       const SizedBox(height: 32),
 
+                      const SizedBox(height: 24),
+
+                      // ✅ REMINDERS SECTION
+                      if (_currentTask.reminders.isNotEmpty)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Reminders',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isDarkMode ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Column(
+                              children: _currentTask.reminders.map((reminder) {
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDarkMode
+                                        ? Colors.white.withOpacity(0.08)
+                                        : Colors.black.withOpacity(0.05),
+                                    border: Border.all(
+                                      color: isDarkMode
+                                          ? Colors.white.withOpacity(0.2)
+                                          : Colors.black.withOpacity(0.1),
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).primaryColor.withOpacity(0.2),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.notifications_active,
+                                          color: Theme.of(context).primaryColor,
+                                          size: 18,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          reminder.time.format(context),
+                                          style: TextStyle(
+                                            color: isDarkMode ? Colors.white : Colors.black87,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: reminder.isEnabled
+                                              ? Colors.green.withOpacity(0.2)
+                                              : Colors.grey.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          reminder.isEnabled ? 'Active' : 'Inactive',
+                                          style: TextStyle(
+                                            color: reminder.isEnabled
+                                                ? Colors.green
+                                                : Colors.grey,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+
                       // ✅ Buttons
                       Row(
                         children: [
@@ -236,7 +336,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                               onPressed: () => Navigator.pop(context),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: isDarkMode
-                                    ? Colors.white.withOpacity(0.15)
+                                    ? Colors.white.withOpacity(0.12)
                                     : Colors.black.withOpacity(0.1),
                                 side: BorderSide(
                                   color: isDarkMode
@@ -307,6 +407,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
+        // ✅ เปลี่ยนสี container ตามธีม
         color: isDarkMode
             ? Colors.white.withOpacity(0.08)
             : Colors.black.withOpacity(0.05),
@@ -525,7 +626,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     switch (category.toLowerCase()) {
       case 'work':
         return const Color(0xFFFFC966);
-      case 'study':
+      case 'Reading':
         return const Color(0xFFADBDE6);
       case 'personal':
         return const Color(0xFF92C4B7);

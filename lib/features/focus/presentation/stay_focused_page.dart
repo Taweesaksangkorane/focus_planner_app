@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'take_a_break_page.dart';
 import 'completed_page.dart';
 
@@ -24,13 +25,28 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
   late int _totalFocusSeconds;
   late Timer _timer;
   bool _isPaused = false;
+  late int _breakTime;
 
   @override
   void initState() {
     super.initState();
     _remainingSeconds = widget.initialMinutes * 60;
     _totalFocusSeconds = widget.initialMinutes * 60;
+    _loadBreakTimeFromSettings();
     _startTimer();
+  }
+
+  Future<void> _loadBreakTimeFromSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _breakTime = prefs.getInt('breakTime') ?? 5;
+      });
+    } catch (e) {
+      setState(() {
+        _breakTime = 5;
+      });
+    }
   }
 
   void _startTimer() {
@@ -57,7 +73,7 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const TakeABreakPage(),
+        builder: (context) => TakeABreakPage(breakMinutes: _breakTime),
       ),
     );
   }
@@ -80,12 +96,16 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
 
     return Scaffold(
       body: Container(
+        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: isDarkMode
-                ? [Colors.purple.shade800, Colors.purple.shade600]
+                ? const [
+                    Color.fromARGB(255, 3, 1, 59),
+                    Color.fromARGB(255, 41, 28, 114),
+                  ]
                 : [Colors.orange.shade400, Colors.orange.shade200],
           ),
         ),
@@ -191,7 +211,7 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
                               onPressed: _pauseTimer,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: isDarkMode
-                                    ? Colors.white.withOpacity(0.15)
+                                    ? Colors.white.withOpacity(0.12)
                                     : Colors.black.withOpacity(0.1),
                                 side: BorderSide(
                                   color: isDarkMode
@@ -206,7 +226,9 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
                               child: Text(
                                 _isPaused ? 'Resume' : 'Pause',
                                 style: TextStyle(
-                                  color: isDarkMode ? Colors.white : Colors.black87,
+                                  color: isDarkMode
+                                      ? Colors.white
+                                      : Colors.black87,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 16,
                                 ),
@@ -263,12 +285,15 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const TakeABreakPage(),
+                                builder: (context) =>
+                                    TakeABreakPage(breakMinutes: _breakTime),
                               ),
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue.shade600,
+                            backgroundColor: isDarkMode
+                                ? Colors.blue.shade700
+                                : Colors.blue.shade600,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -306,9 +331,9 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
         },
         items: const [
           BottomNavigationBarItem(
-          icon: Icon(Icons.track_changes),
-          label: 'Focus',
-        ),
+            icon: Icon(Icons.track_changes),
+            label: 'Focus',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
             label: 'Home',

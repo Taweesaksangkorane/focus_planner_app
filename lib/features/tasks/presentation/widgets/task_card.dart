@@ -12,8 +12,26 @@ class TaskCardNew extends StatelessWidget {
   final TaskModel task;
   final VoidCallback? onTaskUpdated;
 
+  // ✅ ฟังก์ชันกำหนดสีตามหมวดหมู่
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'work':
+        return const Color(0xFFFFC966);  
+      case 'reading':
+        return const Color.fromARGB(255, 109, 143, 231);  
+      case 'personal':
+        return const Color.fromARGB(255, 123, 219, 194);  
+      case 'health':
+        return const Color.fromARGB(255, 89, 221, 111);  
+      default:
+        return const Color(0xFF999999);  // สีเทา default
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final categoryColor = _getCategoryColor(task.category);
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -24,10 +42,16 @@ class TaskCardNew extends StatelessWidget {
         ).then((_) => onTaskUpdated?.call());
       },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        // ✅ เพิ่มแถบสีด้านซ้าย
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border(
+            left: BorderSide(
+              color: categoryColor,
+              width: 5,  // ← ความหนาของแถบสี
+            ),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
@@ -36,24 +60,49 @@ class TaskCardNew extends StatelessWidget {
             ),
           ],
         ),
-
-        /// 🔥 ต้องมี child ตรงนี้
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
-            /// Title
-            Text(
-              task.title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            // ✅ Title
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    task.title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                // ✅ Category Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: categoryColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    task.category,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: categoryColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 6),
 
-            /// Description (แก้ nullable)
+            // ✅ Description
             Text(
               task.description ?? '',
               style: const TextStyle(
@@ -66,7 +115,7 @@ class TaskCardNew extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            /// Footer row
+            // ✅ Footer row
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -90,10 +139,12 @@ class TaskCardNew extends StatelessWidget {
                   ],
                 ),
 
-                /// Priority badge
+                // ✅ Priority badge
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: task.priority.color,
                     borderRadius: BorderRadius.circular(12),

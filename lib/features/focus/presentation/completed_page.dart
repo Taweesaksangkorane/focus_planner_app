@@ -73,12 +73,16 @@ class _CompletedPageState extends State<CompletedPage> {
 
     return Scaffold(
       body: Container(
+        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: isDarkMode
-                ? [Colors.purple.shade800, Colors.purple.shade600]
+                ? const [
+                    Color.fromARGB(255, 3, 1, 59),
+                    Color.fromARGB(255, 41, 28, 114),
+                  ]
                 : [Colors.orange.shade400, Colors.orange.shade200],
           ),
         ),

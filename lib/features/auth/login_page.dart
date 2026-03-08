@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'register_page.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.onLoggedIn, this.onTapSignUp});
@@ -13,50 +14,169 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final emailCtl = TextEditingController();
-  final passCtl = TextEditingController();
-  final formKey = GlobalKey<FormState>();
   bool loading = false;
-  bool obscure = true;
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile', 'openid'],
+    forceCodeForRefreshToken: true,
+  );
 
   @override
-  void dispose() {
-    emailCtl.dispose();
-    passCtl.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 100), () {
+      ScaffoldMessenger.of(context).clearSnackBars();
+    });
   }
 
-  String? _validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'กรุณากรอกอีเมล';
-    final ok = RegExp(r'^\S+@\S+\.\S+$').hasMatch(v.trim());
-    return ok ? null : 'รูปแบบอีเมลไม่ถูกต้อง';
-  }
-
-  String? _validatePassword(String? v) {
-    if (v == null || v.length < 6) return 'รหัสผ่านอย่างน้อย 6 ตัวอักษร';
-    return null;
-  }
-
-  Future<void> _signIn() async {
-    if (!formKey.currentState!.validate()) return;
+  // ✅ Sign in with Google
+  Future<void> _signInWithGoogle() async {
     setState(() => loading = true);
+    ScaffoldMessenger.of(context).clearSnackBars();
+
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailCtl.text.trim(),
-        password: passCtl.text,
-      );
-      // AuthGate จะจับการเปลี่ยนแปลง auth state และนำทางไปหน้า Home อัตโนมัติ
-      widget.onLoggedIn?.call();
+      try {
+        await _googleSignIn.signOut();
+      } catch (e) {
+        debugPrint('Sign out error: $e');
+      }
+
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => loading = false);
+        return;
+      }
+
+      final GoogleSignInAuthentication? googleAuth =
+          await googleUser.authentication;
+
+      if (googleAuth == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to get Google authentication'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        setState(() => loading = false);
+        return;
+      }
+
+      final String? accessToken = googleAuth.accessToken;
+      final String? idToken = googleAuth.idToken;
+
+      if (accessToken == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to get access token'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        setState(() => loading = false);
+        return;
+      }
+
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: accessToken,
+        idToken: idToken,
+      ) as OAuthCredential;
+
+      final UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (mounted && userCredential.user != null) {
+        widget.onLoggedIn?.call();
+      }
     } on FirebaseAuthException catch (e) {
-      final msg = switch (e.code) {
-        'user-not-found' => 'ไม่พบบัญชีผู้ใช้นี้',
-        'wrong-password' => 'รหัสผ่านไม่ถูกต้อง',
-        'invalid-email' => 'อีเมลไม่ถูกต้อง',
-        'too-many-requests' => 'พยายามเข้าสู่ระบบบ่อยเกินไป กรุณาลองใหม่อีกครั้ง',
-        _ => 'เข้าสู่ระบบไม่สำเร็จ: ${e.message}',
-      };
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        final msg = switch (e.code) {
+          'account-exists-with-different-credential' =>
+            'Account exists with different provider',
+          'invalid-credential' => 'Invalid credential',
+          'operation-not-allowed' => 'Google Sign-In not enabled',
+          'user-disabled' => 'User account has been disabled',
+          'user-not-found' => 'User not found',
+          _ => 'Firebase error: ${e.code}',
+        };
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  // ✅ Sign in with Apple
+  Future<void> _signInWithApple() async {
+    setState(() => loading = true);
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    try {
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: appleCredential.identityToken,
+        accessToken: appleCredential.authorizationCode,
+      );
+
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+
+      if (mounted && userCredential.user != null) {
+        widget.onLoggedIn?.call();
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        final msg = switch (e.code) {
+          'account-exists-with-different-credential' =>
+            'Account exists with different provider',
+          'invalid-credential' => 'Invalid credential',
+          'operation-not-allowed' => 'Apple Sign-In not enabled',
+          'user-disabled' => 'User account has been disabled',
+          _ => 'Firebase error: ${e.code}',
+        };
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -71,7 +191,10 @@ class _LoginPageState extends State<LoginPage> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF5E2D91), Color(0xFF8E5AE8)],
+            colors: [
+              Color.fromARGB(255, 3, 1, 59),
+              Color.fromARGB(255, 41, 28, 114)
+            ],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -85,19 +208,25 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // โลโก้/มาสคอต
+                    // ✅ Logo
                     Container(
                       width: 96,
                       height: 96,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.15),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withOpacity(0.25)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.25),
+                        ),
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
-                        '📝',
-                        style: TextStyle(fontSize: 48),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/ChatGPT_Image_1.png',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -111,136 +240,113 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Focus. Work. Study.',
+                      'Focus Planner',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withOpacity(0.9),
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 40),
 
-                    // การ์ดฟอร์ม
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.2)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.20),
-                            blurRadius: 18,
-                            offset: const Offset(0, 10),
+                    // ✅ Google Sign-In Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: loading ? null : _signInWithGoogle,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black87,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ],
-                      ),
-                      child: Form(
-                        key: formKey,
-                        child: Column(
-                          children: [
-                            // Email
-                            TextFormField(
-                              controller: emailCtl,
-                              validator: _validateEmail,
-                              keyboardType: TextInputType.emailAddress,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: _inputDecoration(
-                                context,
-                                label: 'Email',
-                                icon: Icons.email_outlined,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Password + eye
-                            TextFormField(
-                              controller: passCtl,
-                              validator: _validatePassword,
-                              obscureText: obscure,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: _inputDecoration(
-                                context,
-                                label: 'Password',
-                                icon: Icons.lock_outline,
-                                suffix: IconButton(
-                                  icon: Icon(
-                                    obscure ? Icons.visibility_off : Icons.visibility,
-                                    color: Colors.white.withOpacity(0.9),
-                                  ),
-                                  onPressed: () => setState(() => obscure = !obscure),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-
-                            // ปุ่ม Login
-                            SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFFFFA34F), Color(0xFFFF7A00)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFFFF7A00).withOpacity(0.4),
-                                      blurRadius: 14,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent,
-                                    shadowColor: Colors.transparent,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    foregroundColor: Colors.white,
-                                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                                  ),
-                                  onPressed: loading ? null : _signIn,
-                                  child: Text(loading ? 'กำลังเข้าสู่ระบบ...' : 'Login'),
-                                ),
-                              ),
-                            ),
-                          ],
+                          elevation: 2,
                         ),
+                        child: loading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFF4285F4),
+                                  ),
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white,
+                                    ),
+                                    child: Image.asset(
+                                      'assets/images/google.png',
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Sign in with Google',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
-
                     const SizedBox(height: 16),
 
-                    // แถว Sign Up
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Don't have an account? ",
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withOpacity(0.9),
+                    // ✅ Apple Sign-In Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: loading ? null : _signInWithApple,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black87,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                          elevation: 2,
                         ),
-                        TextButton(
-                          onPressed: widget.onTapSignUp ??
-                              () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const RegisterPage(),
+                        child: loading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
                                   ),
-                                );
-                              },
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          child: const Text('Sign Up'),
-                        ),
-                      ],
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.apple,
+                                    size: 24,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Sign in with Apple',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
                     ),
-
-                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -250,29 +356,4 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  InputDecoration _inputDecoration(
-    BuildContext context, {
-    required String label,
-    required IconData icon,
-    Widget? suffix,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: Colors.white.withOpacity(0.9)),
-      prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.9)),
-      suffixIcon: suffix,
-      filled: true,
-      fillColor: Colors.white.withOpacity(0.06),
-      enabledBorder: _border(Colors.white.withOpacity(0.35)),
-      focusedBorder: _border(Colors.white),
-      errorBorder: _border(Colors.redAccent),
-      focusedErrorBorder: _border(Colors.redAccent),
-    );
-  }
-
-  OutlineInputBorder _border(Color c) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: c, width: 1.2),
-      );
 }

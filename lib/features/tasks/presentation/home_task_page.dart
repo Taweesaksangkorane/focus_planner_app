@@ -23,7 +23,7 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
   bool isLoading = false;
   String _selectedFilter = 'All Task';
 
-  final categories = ['All Task', 'Work', 'Study', 'Personal', 'Health'];
+  final categories = ['All Task', 'Work', 'Reading', 'Personal', 'Health'];
 
   @override
   void initState() {
@@ -100,6 +100,8 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(''),
@@ -122,7 +124,7 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
         index: _selectedIndex,
         children: [
           const SizedBox(),
-          _buildHomeView(),
+          _buildHomeView(isDarkMode),
           const ProfilePage(),
         ],
       ),
@@ -135,9 +137,34 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
                     builder: (context) => const AddTaskPage(),
                   ),
                 ).then((newTask) async {
-                  if (newTask != null) {
-                    await _taskRepository.addTask(newTask);
-                    _loadTasks();
+                  if (newTask != null && mounted) {
+                    try {
+                      // ✅ เพิ่ม task ลง Firebase
+                      await _taskRepository.addTask(newTask);
+
+                      // ✅ Refresh list ทันที
+                      await _loadTasks();
+
+                      // ✅ แสดง success message
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Task created successfully!'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error adding task: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
                   }
                 });
               },
@@ -167,56 +194,81 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
     );
   }
 
-  Widget _buildHomeView() {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          _buildHeaderSection(),
-          const SizedBox(height: 20),
-          _buildFilterButtons(),
-          const SizedBox(height: 20),
-          _buildTasksList(),
-          const SizedBox(height: 20),
-        ],
+  Widget _buildHomeView(bool isDarkMode) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDarkMode
+              ? const [
+                  Color.fromARGB(255, 3, 1, 59),
+                  Color.fromARGB(255, 41, 28, 114),
+                ]
+              : [Colors.orange.shade400, Colors.orange.shade200],
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildHeaderSection(isDarkMode),
+            const SizedBox(height: 20),
+            _buildFilterButtons(isDarkMode),
+            const SizedBox(height: 20),
+            _buildTasksList(isDarkMode),
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHeaderSection() {
+  Widget _buildHeaderSection(bool isDarkMode) {
     return Container(
       margin: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Task List',
             style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: Color.fromARGB(255, 231, 113, 16),
+              color: isDarkMode
+                  ? Colors.white
+                  : const Color.fromARGB(255, 252, 251, 251),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Today, ${_getTodayDate()}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: Color.fromARGB(179, 233, 141, 36),
+              color: isDarkMode
+                  ? Colors.white.withOpacity(0.7)
+                  : const Color.fromARGB(179, 247, 246, 245),
             ),
           ),
           const SizedBox(height: 20),
-          _buildDecorationSection(),
+          _buildDecorationSection(isDarkMode),
         ],
       ),
     );
   }
 
-  Widget _buildDecorationSection() {
+  Widget _buildDecorationSection(bool isDarkMode) {
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 209, 207, 207),
+        color: isDarkMode
+            ? const Color.fromARGB(255, 41, 28, 114).withOpacity(0.6)
+            : const Color.fromARGB(255, 209, 207, 207),
         borderRadius: BorderRadius.circular(24),
+        border: isDarkMode
+            ? Border.all(
+                color: Colors.white.withOpacity(0.2),
+              )
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -233,7 +285,7 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
             right: 0,
             child: CustomPaint(
               size: const Size(double.infinity, 50),
-              painter: WavePainter(),
+              painter: WavePainter(isDarkMode: isDarkMode),
             ),
           ),
           Positioned(
@@ -241,71 +293,16 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
             bottom: 10,
             child: Text(
               '🐱',
-              style: TextStyle(fontSize: 90),
+              style: TextStyle(fontSize: 85),
             ),
           ),
-          Positioned(
-            left: 16,
-            bottom: 16,
-            right: 16,
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _filterTasks('All Task'),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: _selectedFilter == 'All Task'
-                          ? Colors.grey.shade300
-                          : Colors.transparent,
-                      side: BorderSide(
-                        color: Colors.grey.shade400,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'All Task',
-                      style: TextStyle(color: Colors.black87),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddTaskPage(),
-                        ),
-                      ).then((newTask) async {
-                        if (newTask != null) {
-                          await _taskRepository.addTask(newTask);
-                          _loadTasks();
-                        }
-                      });
-                    },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('New Task'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          
         ],
       ),
     );
   }
 
-  Widget _buildFilterButtons() {
+  Widget _buildFilterButtons(bool isDarkMode) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -323,12 +320,16 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
               side: BorderSide(
                 color: isSelected
                     ? Theme.of(context).primaryColor
-                    : Colors.grey.shade600,
+                    : isDarkMode
+                        ? Colors.white.withOpacity(0.3)
+                        : Colors.grey.shade600,
               ),
               labelStyle: TextStyle(
                 color: isSelected
                     ? Theme.of(context).primaryColor
-                    : Colors.grey.shade600,
+                    : isDarkMode
+                        ? Colors.white.withOpacity(0.7)
+                        : Colors.grey.shade600,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -338,10 +339,14 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
     );
   }
 
-  Widget _buildTasksList() {
+  Widget _buildTasksList(bool isDarkMode) {
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
+      return Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(
+            Theme.of(context).primaryColor,
+          ),
+        ),
       );
     }
 
@@ -352,7 +357,9 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
           child: Text(
             'No tasks found',
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: isDarkMode
+                  ? Colors.white.withOpacity(0.6)
+                  : Colors.grey.shade600,
               fontSize: 16,
             ),
           ),
@@ -382,10 +389,16 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
 }
 
 class WavePainter extends CustomPainter {
+  final bool isDarkMode;
+
+  WavePainter({required this.isDarkMode});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF221B2D)
+      ..color = isDarkMode
+          ? const Color.fromARGB(255, 41, 28, 114)
+          : const Color(0xFF221B2D)
       ..style = PaintingStyle.fill;
 
     final path = Path();

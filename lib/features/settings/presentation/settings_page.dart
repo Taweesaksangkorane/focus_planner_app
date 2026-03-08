@@ -329,10 +329,31 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     if (_isLoading) {
       return Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
+        body: Container(
+          // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isDarkMode
+                  ? const [
+                      Color.fromARGB(255, 3, 1, 59),
+                      Color.fromARGB(255, 41, 28, 114),
+                    ]
+                  : [Colors.orange.shade400, Colors.orange.shade200],
+            ),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Color(0xFFFFA34F),
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -346,103 +367,124 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Settings',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // ✅ Theme Toggle
-            Consumer<ThemeProvider>(
-              builder: (context, themeProvider, _) {
-                return _buildSettingCard(
-                  icon: themeProvider.isDarkMode
-                      ? Icons.dark_mode_rounded
-                      : Icons.light_mode_rounded,
-                  title: 'Theme',
-                  subtitle: themeProvider.isDarkMode
-                      ? 'Dark Mode'
-                      : 'Light Mode',
-                  onTap: () {
-                    themeProvider.toggleTheme();
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-
-            // ✅ Focus Time Settings
-            _buildSettingCard(
-              icon: Icons.timer,
-              title: 'Focus Time',
-              subtitle: '$_focusTimeMinutes minutes per session',
-              onTap: _showFocusTimeDialog,
-            ),
-            const SizedBox(height: 12),
-
-            // ✅ Break Time Settings
-            _buildSettingCard(
-              icon: Icons.lunch_dining,
-              title: 'Break Time',
-              subtitle: '$_breakTimeMinutes minutes per break',
-              onTap: _showBreakTimeDialog,
-            ),
-            const SizedBox(height: 12),
-
-            // ✅ Notifications Settings
-            _buildSettingCard(
-              icon: Icons.notifications_rounded,
-              title: 'Notifications',
-              subtitle: _notificationsEnabled
-                  ? 'Notifications enabled'
-                  : 'Notifications disabled',
-              onTap: _showNotificationsDialog,
-            ),
-            const SizedBox(height: 12),
-
-            // ✅ Help & Support
-            _buildSettingCard(
-              icon: Icons.help_rounded,
-              title: 'Help & Support',
-              subtitle: 'Learn how to use the app',
-              onTap: _showHelpDialog,
-            ),
-            const SizedBox(height: 32),
-
-            // ✅ Logout Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _logout,
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text(
-                  'Logout',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.withOpacity(0.2),
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red, width: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+      body: Container(
+        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDarkMode
+                ? const [
+                    Color.fromARGB(255, 3, 1, 59),
+                    Color.fromARGB(255, 41, 28, 114),
+                  ]
+                : [Colors.orange.shade400, Colors.orange.shade200],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Settings',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : Colors.white,
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 24),
+
+              // ✅ Theme Toggle
+              Consumer<ThemeProvider>(
+                builder: (context, themeProvider, _) {
+                  return _buildSettingCard(
+                    icon: themeProvider.isDarkMode
+                        ? Icons.dark_mode_rounded
+                        : Icons.light_mode_rounded,
+                    title: 'Theme',
+                    subtitle: themeProvider.isDarkMode
+                        ? 'Dark Mode'
+                        : 'Light Mode',
+                    onTap: () {
+                      themeProvider.toggleTheme();
+                    },
+                    isDarkMode: isDarkMode,
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+
+              // ✅ Focus Time Settings
+              _buildSettingCard(
+                icon: Icons.timer,
+                title: 'Focus Time',
+                subtitle: '$_focusTimeMinutes minutes per session',
+                onTap: _showFocusTimeDialog,
+                isDarkMode: isDarkMode,
+              ),
+              const SizedBox(height: 12),
+
+              // ✅ Break Time Settings
+              _buildSettingCard(
+                icon: Icons.lunch_dining,
+                title: 'Break Time',
+                subtitle: '$_breakTimeMinutes minutes per break',
+                onTap: _showBreakTimeDialog,
+                isDarkMode: isDarkMode,
+              ),
+              const SizedBox(height: 12),
+
+              // ✅ Notifications Settings
+              _buildSettingCard(
+                icon: Icons.notifications_rounded,
+                title: 'Notifications',
+                subtitle: _notificationsEnabled
+                    ? 'Notifications enabled'
+                    : 'Notifications disabled',
+                onTap: _showNotificationsDialog,
+                isDarkMode: isDarkMode,
+              ),
+              const SizedBox(height: 12),
+
+              // ✅ Help & Support
+              _buildSettingCard(
+                icon: Icons.help_rounded,
+                title: 'Help & Support',
+                subtitle: 'Learn how to use the app',
+                onTap: _showHelpDialog,
+                isDarkMode: isDarkMode,
+              ),
+              const SizedBox(height: 32),
+
+              // ✅ Logout Button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.withOpacity(0.2),
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
@@ -453,16 +495,22 @@ class _SettingsPageState extends State<SettingsPage> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    required bool isDarkMode,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          // ✅ เปลี่ยนสี card ตามธีม
+          color: isDarkMode
+              ? Colors.white.withOpacity(0.08)
+              : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Colors.white.withOpacity(0.1),
+            color: isDarkMode
+                ? Colors.white.withOpacity(0.2)
+                : Colors.white.withOpacity(0.1),
           ),
         ),
         child: Row(
@@ -486,9 +534,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
+                      color: isDarkMode ? Colors.white : Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -496,7 +545,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: isDarkMode
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -505,7 +556,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Icon(
               Icons.arrow_forward_ios_rounded,
               size: 16,
-              color: Colors.grey.shade400,
+              color: isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400,
             ),
           ],
         ),

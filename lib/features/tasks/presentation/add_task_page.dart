@@ -21,9 +21,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
   String _selectedCategory = 'Work';
   Priority _selectedPriority = Priority.none;
   bool _autoPriority = true;
-  late int _focusTime; // ✅ Load from Settings
+  late int _focusTime;
+  List<ReminderModel> _reminders = []; 
 
-  final categories = ['Work', 'Study', 'Personal', 'Health'];
+  final categories = ['Work', 'Reading', 'Personal', 'Health'];
   bool _isLoading = true;
 
   @override
@@ -32,17 +33,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
     _loadFocusTimeFromSettings();
   }
 
-  // ✅ Load Focus Time from Settings
   Future<void> _loadFocusTimeFromSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       setState(() {
-        _focusTime = prefs.getInt('focusTime') ?? 25; // Default 25 mins
+        _focusTime = prefs.getInt('focusTime') ?? 25;
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _focusTime = 25; // Default if error
+        _focusTime = 25;
         _isLoading = false;
       });
     }
@@ -61,7 +61,6 @@ class _AddTaskPageState extends State<AddTaskPage> {
     return null;
   }
 
-  // ✅ Auto Calculate Priority based on Due Date
   void _calculateAutoPriority() {
     if (!_autoPriority || _selectedDate == null) {
       _selectedPriority = Priority.none;
@@ -80,16 +79,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
     setState(() {
       if (daysUntilDue <= 3 && daysUntilDue >= 0) {
-        // ✅ วันนี้ - ใน 3 วัน = High Priority
         _selectedPriority = Priority.high;
       } else if (daysUntilDue >= 4 && daysUntilDue <= 6) {
-        // ✅ ใน 4-6 วัน = Medium Priority
         _selectedPriority = Priority.medium;
       } else if (daysUntilDue > 6) {
-        // ✅ มากกว่า 6 วัน = Low Priority
         _selectedPriority = Priority.low;
       } else if (daysUntilDue < 0) {
-        // ✅ วันที่ผ่านแล้ว = High Priority (Urgent!)
         _selectedPriority = Priority.high;
       }
     });
@@ -134,7 +129,6 @@ class _AddTaskPageState extends State<AddTaskPage> {
     return '';
   }
 
-  // ✅ Show Focus Time Dialog
   void _showFocusTimeDialog() {
     showDialog(
       context: context,
@@ -173,6 +167,33 @@ class _AddTaskPageState extends State<AddTaskPage> {
     );
   }
 
+  // ✅ เพิ่ม reminder
+  Future<void> _addReminder() async {
+    final result = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+
+    if (result != null) {
+      setState(() {
+        _reminders.add(
+          ReminderModel(
+            id: const Uuid().v4(),
+            time: result,
+            isEnabled: true,
+          ),
+        );
+      });
+    }
+  }
+
+  // ✅ ลบ reminder
+  void _removeReminder(String id) {
+    setState(() {
+      _reminders.removeWhere((r) => r.id == id);
+    });
+  }
+
   void _createTask() {
     if (!formKey.currentState!.validate()) return;
 
@@ -184,6 +205,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
       dueDate: _selectedDate,
       priority: _selectedPriority,
       isCompleted: false,
+      reminders: _reminders, // ✅ เพิ่ม reminders
     );
 
     Navigator.pop(context, task);
@@ -191,6 +213,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     if (_isLoading) {
       return Scaffold(
         body: Container(
@@ -198,11 +222,20 @@ class _AddTaskPageState extends State<AddTaskPage> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [Colors.purple.shade800, Colors.purple.shade600],
+              colors: isDarkMode
+                  ? const [
+                      Color.fromARGB(255, 3, 1, 59),
+                      Color.fromARGB(255, 41, 28, 114),
+                    ]
+                  : [Colors.purple.shade800, Colors.purple.shade600],
             ),
           ),
           child: const Center(
-            child: CircularProgressIndicator(),
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Color(0xFFFFA34F),
+              ),
+            ),
           ),
         ),
       );
@@ -222,7 +255,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.purple.shade800, Colors.purple.shade600],
+            colors: isDarkMode
+                ? const [
+                    Color.fromARGB(255, 3, 1, 59),
+                    Color.fromARGB(255, 41, 28, 114),
+                  ]
+                : [Colors.purple.shade800, Colors.purple.shade600],
           ),
         ),
         child: SafeArea(
@@ -237,10 +275,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Task Title',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: isDarkMode ? Colors.white : Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -249,33 +287,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       TextFormField(
                         controller: titleCtl,
                         validator: _validateTitle,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Enter task title',
-                          hintStyle: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.08),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.white.withOpacity(0.2),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Colors.white,
-                              width: 1.5,
-                            ),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Colors.redAccent,
-                            ),
-                          ),
+                        style: TextStyle(
+                          color: isDarkMode ? Colors.white : Colors.white,
+                        ),
+                        decoration: _inputDecoration(
+                          'Enter task title',
+                          isDarkMode: isDarkMode,
                         ),
                       ),
                     ],
@@ -287,10 +304,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Description',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -298,28 +315,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: descriptionCtl,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.white : Colors.white,
+                      ),
                       maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText: 'Enter task description',
-                        hintStyle: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white.withOpacity(0.08),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Colors.white.withOpacity(0.2),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Colors.white,
-                            width: 1.5,
-                          ),
-                        ),
+                      decoration: _inputDecoration(
+                        'Enter task description',
+                        isDarkMode: isDarkMode,
                       ),
                     ),
                   ],
@@ -330,10 +332,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Category',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -379,10 +381,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Due Date',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: isDarkMode ? Colors.white : Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -396,7 +398,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           vertical: 14,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.08),
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.08)
+                              : Colors.white.withOpacity(0.08),
                           border: Border.all(
                             color: Colors.white.withOpacity(0.2),
                           ),
@@ -445,7 +449,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
+                    color: isDarkMode
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.white.withOpacity(0.08),
                     border: Border.all(
                       color: Colors.white.withOpacity(0.2),
                     ),
@@ -457,10 +463,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Auto Priority',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isDarkMode ? Colors.white : Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),
@@ -490,17 +496,17 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // ✅ Priority Selection (disabled if auto)
+                // ✅ Priority Selection
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'Priority',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: isDarkMode ? Colors.white : Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -539,7 +545,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             Priority.high,
                           ]
                               .map((priority) {
-                                final isSelected = _selectedPriority == priority;
+                                final isSelected =
+                                    _selectedPriority == priority;
                                 return FilterChip(
                                   label: Text(priority.label),
                                   selected: isSelected,
@@ -547,12 +554,14 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                       ? null
                                       : (_) {
                                           setState(
-                                            () => _selectedPriority = priority,
+                                            () =>
+                                                _selectedPriority = priority,
                                           );
                                         },
                                   backgroundColor:
                                       Colors.white.withOpacity(0.1),
-                                  selectedColor: priority.color.withOpacity(0.3),
+                                  selectedColor:
+                                      priority.color.withOpacity(0.3),
                                   side: BorderSide(
                                     color: isSelected
                                         ? priority.color
@@ -574,11 +583,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // ✅ Focus Time Setting (NEW)
+                // ✅ Focus Time Setting
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
+                    color: isDarkMode
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.white.withOpacity(0.08),
                     border: Border.all(
                       color: Colors.white.withOpacity(0.2),
                     ),
@@ -590,10 +601,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Focus Time',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isDarkMode ? Colors.white : Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                             ),
@@ -632,7 +643,153 @@ class _AddTaskPageState extends State<AddTaskPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
+
+                // ✅ REMINDERS SECTION
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Reminders',
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.white : Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // ✅ กรอบหลัก - คลิกทั้งกรอบเพิ่มเวลา
+                    if (_reminders.isEmpty)
+                      GestureDetector(
+                        onTap: _addReminder,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 20,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDarkMode
+                                ? Colors.white.withOpacity(0.08)
+                                : Colors.white.withOpacity(0.08),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.2),
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '+ Set a reminder.',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      Column(
+                        children: [
+                          // ✅ List reminders ที่มีอยู่
+                          ..._reminders.map((reminder) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDarkMode
+                                    ? Colors.white.withOpacity(0.08)
+                                    : Colors.white.withOpacity(0.08),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.notifications_active,
+                                        color: Theme.of(context).primaryColor,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        reminder.time.format(context),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  GestureDetector(
+                                    onTap: () => _removeReminder(reminder.id),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.2),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.red,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          
+                          // ✅ Reminder baru - คลิกทั้งกรอบเพิ่มเวลาใหม่
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: _addReminder,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.04),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.15),
+                                  style: BorderStyle.solid,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.add_circle_outline,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Add Reminder',
+                                    style: TextStyle(
+                                      color: Theme.of(context).primaryColor,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
 
                 // ✅ Action Buttons
                 Row(
@@ -641,7 +798,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.15),
+                          backgroundColor: isDarkMode
+                              ? Colors.white.withOpacity(0.12)
+                              : Colors.white.withOpacity(0.15),
                           side: BorderSide(
                             color: Colors.white.withOpacity(0.3),
                           ),
@@ -670,10 +829,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Create Task',
                           style: TextStyle(
-                            color: Colors.black87,
+                            color: isDarkMode
+                                ? Colors.black87
+                                : Colors.black87,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -689,11 +850,46 @@ class _AddTaskPageState extends State<AddTaskPage> {
     );
   }
 
+  InputDecoration _inputDecoration(
+    String hint, {
+    required bool isDarkMode,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(
+        color: Colors.white.withOpacity(0.5),
+      ),
+      filled: true,
+      fillColor: isDarkMode
+          ? Colors.white.withOpacity(0.08)
+          : Colors.white.withOpacity(0.08),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Colors.white.withOpacity(0.2),
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Colors.white,
+          width: 1.5,
+        ),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Colors.redAccent,
+        ),
+      ),
+    );
+  }
+
   Color _getCategoryColor(String category) {
     switch (category.toLowerCase()) {
       case 'work':
         return const Color(0xFFFFC966);
-      case 'study':
+      case 'reading':
         return const Color(0xFFADBDE6);
       case 'personal':
         return const Color(0xFF92C4B7);

@@ -10,10 +10,14 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage>
+    with AutomaticKeepAliveClientMixin {
   late TaskRepository _repository;
   late Future<Map<String, dynamic>> _stats;
   late Future<List<TaskModel>> _completedTasks;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -22,6 +26,11 @@ class _ProfilePageState extends State<ProfilePage> {
     if (user != null) {
       _repository = TaskRepositoryImpl(userId: user.uid);
     }
+    _loadStats();
+    _loadCompletedTasks();
+  }
+
+  Future<void> _refreshData() async {
     _loadStats();
     _loadCompletedTasks();
   }
@@ -52,31 +61,41 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+    
     final currentUser = FirebaseAuth.instance.currentUser;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDarkMode
-                ? [Colors.purple.shade800, Colors.purple.shade600]
-                : [Colors.orange.shade400, Colors.orange.shade200],
+      body: RefreshIndicator(
+        onRefresh: _refreshData,
+        child: Container(
+          // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: isDarkMode
+                  ? const [
+                      Color.fromARGB(255, 3, 1, 59),
+                      Color.fromARGB(255, 41, 28, 114),
+                    ]
+                  : [Colors.orange.shade400, Colors.orange.shade200],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: Column(
-              children: [
-                _buildHeaderSection(currentUser, isDarkMode),
-                const SizedBox(height: 20),
-                _buildStatsSection(isDarkMode),
-                const SizedBox(height: 20),
-                _buildCompletedTasksSection(isDarkMode),
-              ],
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                children: [
+                  _buildHeaderSection(currentUser, isDarkMode),
+                  const SizedBox(height: 20),
+                  _buildStatsSection(isDarkMode),
+                  const SizedBox(height: 20),
+                  _buildCompletedTasksSection(isDarkMode),
+                ],
+              ),
             ),
           ),
         ),
@@ -101,6 +120,7 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Column(
             children: [
               const SizedBox(height: 40),
+              // ✅ Profile Circle
               Container(
                 width: 100,
                 height: 100,
@@ -118,7 +138,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withOpacity(0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -178,7 +198,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // ✅ Stats Section (Focus Completed + Focus Sessions + Total Time)
+  // ✅ Stats Section
   Widget _buildStatsSection(bool isDarkMode) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -188,11 +208,17 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDarkMode ? Theme.of(context).cardColor : Colors.white,
+              // ✅ เปลี่ยนสี card
+              color: isDarkMode
+                  ? const Color.fromARGB(255, 41, 28, 114).withOpacity(0.6)
+                  : Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withOpacity(0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -202,7 +228,11 @@ class _ProfilePageState extends State<ProfilePage> {
               future: _stats,
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return const CircularProgressIndicator();
+                  return const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFFFFA34F),
+                    ),
+                  );
                 }
                 final stats = snapshot.data!;
                 return Row(
@@ -221,7 +251,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: TextStyle(
                               fontSize: 14,
                               color: isDarkMode
-                                  ? Colors.grey.shade400
+                                  ? Colors.white.withOpacity(0.7)
                                   : Colors.grey,
                               fontWeight: FontWeight.w500,
                             ),
@@ -232,9 +262,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              color: isDarkMode
-                                  ? Colors.white
-                                  : Colors.black87,
+                              color: isDarkMode ? Colors.white : Colors.black87,
                             ),
                           ),
                         ],
@@ -250,11 +278,16 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDarkMode ? Theme.of(context).cardColor : Colors.white,
+              color: isDarkMode
+                  ? const Color.fromARGB(255, 41, 28, 114).withOpacity(0.6)
+                  : Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withOpacity(0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -264,7 +297,11 @@ class _ProfilePageState extends State<ProfilePage> {
               future: _stats,
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return const CircularProgressIndicator();
+                  return const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFFFFA34F),
+                    ),
+                  );
                 }
                 final stats = snapshot.data!;
                 final focusHours = (stats['focusTime'] as int) ~/ 60;
@@ -277,14 +314,14 @@ class _ProfilePageState extends State<ProfilePage> {
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: isDarkMode
-                                ? Colors.grey.shade700
+                                ? Colors.white.withOpacity(0.1)
                                 : Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             Icons.check_circle,
                             color: isDarkMode
-                                ? Colors.white70
+                                ? Colors.white.withOpacity(0.7)
                                 : Colors.black54,
                             size: 20,
                           ),
@@ -296,9 +333,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: isDarkMode
-                                  ? Colors.white
-                                  : Colors.black87,
+                              color:
+                                  isDarkMode ? Colors.white : Colors.black87,
                             ),
                           ),
                         ),
@@ -307,9 +343,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: isDarkMode
-                                ? Colors.white
-                                : Colors.black87,
+                            color:
+                                isDarkMode ? Colors.white : Colors.black87,
                           ),
                         ),
                       ],
@@ -321,14 +356,14 @@ class _ProfilePageState extends State<ProfilePage> {
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: isDarkMode
-                                ? Colors.grey.shade700
+                                ? Colors.white.withOpacity(0.1)
                                 : Colors.grey.shade200,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             Icons.access_time,
                             color: isDarkMode
-                                ? Colors.white70
+                                ? Colors.white.withOpacity(0.7)
                                 : Colors.black54,
                             size: 20,
                           ),
@@ -340,9 +375,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: isDarkMode
-                                  ? Colors.white
-                                  : Colors.black87,
+                              color:
+                                  isDarkMode ? Colors.white : Colors.black87,
                             ),
                           ),
                         ),
@@ -351,9 +385,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: isDarkMode
-                                ? Colors.white
-                                : Colors.black87,
+                            color:
+                                isDarkMode ? Colors.white : Colors.black87,
                           ),
                         ),
                       ],
@@ -375,11 +408,16 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isDarkMode ? Theme.of(context).cardColor : Colors.white,
+          color: isDarkMode
+              ? const Color.fromARGB(255, 41, 28, 114).withOpacity(0.6)
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.2),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.2),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -410,14 +448,28 @@ class _ProfilePageState extends State<ProfilePage> {
               future: _completedTasks,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFFFFA34F),
+                      ),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Text(
+                    'Error loading tasks: ${snapshot.error}',
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.white : Colors.black87,
+                    ),
+                  );
                 }
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return Text(
                     'No completed tasks yet',
                     style: TextStyle(
                       color: isDarkMode
-                          ? Colors.grey.shade400
+                          ? Colors.white.withOpacity(0.6)
                           : Colors.grey,
                       fontSize: 14,
                     ),
@@ -448,11 +500,14 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
+        // ✅ เปลี่ยนสี task item
         color: isDarkMode
-            ? Colors.green.shade900.withOpacity(0.3)
+            ? Colors.green.withOpacity(0.15)
             : Colors.green.shade50,
         border: Border.all(
-          color: isDarkMode ? Colors.green.shade700 : Colors.green.shade200,
+          color: isDarkMode
+              ? Colors.green.withOpacity(0.3)
+              : Colors.green.shade200,
         ),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -488,7 +543,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 style: TextStyle(
                   fontSize: 12,
                   color: isDarkMode
-                      ? Colors.grey.shade400
+                      ? Colors.white.withOpacity(0.6)
                       : Colors.grey,
                 ),
               ),
