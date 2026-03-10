@@ -34,9 +34,9 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  firebase_core: ^4.4.0
-  firebase_auth: ^6.1.4
-  cloud_firestore: ^6.1.2
+  #firebase_core: ^2.32.0
+  #firebase_auth: ^6.1.4
+  #cloud_firestore: ^6.1.2
   intl: ^0.19.0
   confetti: ^0.7.0
   table_calendar: ^3.0.9
@@ -48,6 +48,14 @@ dependencies:
   mailer: ^6.0.1
   sign_in_with_apple: ^5.0.0
   wheel_chooser: ^1.0.0
+
+  firebase_core: ^2.30.0
+  firebase_auth: ^4.16.0
+  cloud_firestore: ^4.17.5
+  firebase_storage: ^11.6.5
+  image_picker: ^1.2.1
+  
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +86,22 @@ flutter:
   assets:
     - assets/images/google.png
     - assets/images/ChatGPT_Image_1.png
+    - assets/images/output (1).png
+    - assets/images/output (2).png
+    - assets/images/output (3).png
+    - assets/images/output (4).png
+    - assets/images/output (5).png
+    - assets/images/output (6).png
+    - assets/images/output (7).png
+    - assets/images/output (8).png
+    - assets/images/output (9).png
+    - assets/images/output (10).png
+    - assets/images/output (11).png
+    - assets/images/output (12).png
+    - assets/images/output (13).png
+    - assets/images/output (14).png
+    - assets/images/output (15).png
+    - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:focus_planner_app/features/auth/login_page.dart';
+import 'package:focus_planner_app/features/tasks/presentation/home_task_page.dart';
+import 'package:focus_planner_app/features/tasks/presentation/profile_page.dart';
+import 'package:focus_planner_app/features/settings/presentation/settings_page.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'features/tasks/presentation/auth_gate.dart';
@@ -10,10 +14,10 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const FocusPlannerApp()); // ✅ เปลี่ยนตรงนี้
+  runApp(const FocusPlannerApp());
 }
 
-class FocusPlannerApp extends StatelessWidget { // ✅ เปลี่ยนชื่อคลาส
+class FocusPlannerApp extends StatelessWidget {
   const FocusPlannerApp({Key? key}) : super(key: key);
 
   @override
@@ -28,11 +32,20 @@ class FocusPlannerApp extends StatelessWidget { // ✅ เปลี่ยนช�
             title: 'Focus Timer App',
             theme: themeProvider.lightTheme,
             darkTheme: themeProvider.darkTheme,
-            themeMode: themeProvider.isDarkMode
-                ? ThemeMode.dark
-                : ThemeMode.light,
-            home: const AuthGate(),
-            debugShowCheckedModeBanner: false, // แนะนำเพิ่ม
+            themeMode:
+                themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+
+            home: const AuthGate(),  // ✅ ใช้ AuthGate เป็น default
+
+            // ✅ เพิ่ม named routes ทั้งหมด
+            routes: {
+              '/login': (context) => const LoginPage(),
+              '/home': (context) => const HomeTaskPage(),
+              '/profile': (context) => const ProfilePage(),
+              '/settings': (context) => const SettingsPage(),
+            },
+
+            debugShowCheckedModeBanner: false,
           );
         },
       ),

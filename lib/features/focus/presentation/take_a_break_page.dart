@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../tasks/data/task_model.dart';
+import '../../tasks/data/task_repository.dart';
 import 'stay_focused_page.dart';
 
 class TakeABreakPage extends StatefulWidget {
   final int breakMinutes;
+  final String? taskId;
+  final String? taskTitle;
+  final int? focusRemainingSeconds;  // ✅ เพิ่ม parameter
 
   const TakeABreakPage({
     Key? key,
     this.breakMinutes = 5,
+    this.taskId,
+    this.taskTitle,
+    this.focusRemainingSeconds,  // ✅ เพิ่ม parameter
   }) : super(key: key);
 
   @override
@@ -19,13 +28,27 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
   late int _remainingSeconds;
   late Timer _timer;
   late int _breakTime;
+  late TaskRepository _taskRepository;
 
   @override
   void initState() {
     super.initState();
+    _initializeRepository();
     _loadBreakTimeFromSettings();
     _remainingSeconds = widget.breakMinutes * 60;
     _startTimer();
+  }
+
+  // ✅ เพิ่ม initialize repository
+  Future<void> _initializeRepository() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        _taskRepository = TaskRepositoryImpl(userId: user.uid);
+      }
+    } catch (e) {
+      debugPrint('Error initializing repository: $e');
+    }
   }
 
   Future<void> _loadBreakTimeFromSettings() async {
@@ -54,17 +77,59 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
     });
   }
 
+  // ✅ เปลี่ยนเป็นส่ง focusRemainingSeconds กลับไป
   void _backToFocus() {
     _timer.cancel();
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const StayFocusedPage(
-          taskTitle: 'Finish UI Design',
-          taskId: 'task123',
+        builder: (context) => StayFocusedPage(
+          taskTitle: widget.taskTitle ?? 'Finish UI Design',
+          taskId: widget.taskId ?? 'task123',
+          initialMinutes: 25,  // ← ค่า default
+          remainingSeconds: widget.focusRemainingSeconds,  // ✅ ส่งค่าไป
         ),
       ),
     );
+  }
+
+  // ✅ เพิ่มฟังก์ชัน mark task as incomplete
+  Future<void> _giveUpTask() async {
+    setState(() {
+      // Show loading
+    });
+
+    try {
+      if (widget.taskId != null && widget.taskId!.isNotEmpty) {
+        // ✅ ลบ task จาก Firebase
+        await _taskRepository.deleteTask(widget.taskId!);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Task cancelled. Try again later!'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+
+      _timer.cancel();
+
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String _formatTime(int seconds) {
@@ -85,7 +150,6 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
 
     return Scaffold(
       body: Container(
-        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -130,7 +194,6 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
                   height: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    // ✅ เปลี่ยนสี background ตามธีม
                     color: isDarkMode
                         ? Colors.white.withOpacity(0.08)
                         : Colors.black.withOpacity(0.05),
@@ -191,7 +254,7 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
                         child: ElevatedButton(
                           onPressed: () {
                             _timer.cancel();
-                            _backToFocus();
+                            _backToFocus();  // ✅ เปลี่ยนเป็น _backToFocus
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: isDarkMode
@@ -222,10 +285,7 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            _timer.cancel();
-                            Navigator.of(context).pushNamed('/home');
-                          },
+                          onPressed: _giveUpTask,  // ✅ เปลี่ยนเป็นฟังก์ชัน
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                                 Theme.of(context).primaryColor,
@@ -260,7 +320,7 @@ class _TakeABreakPageState extends State<TakeABreakPage> {
         onTap: (index) {
           if (index == 1) {
             _timer.cancel();
-            Navigator.of(context).pushNamed('/home');
+            _giveUpTask();  // ✅ ลบ task ก่อนกลับ
           } else if (index == 2) {
             _timer.cancel();
             Navigator.of(context).pushNamed('/profile');

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:focus_planner_app/features/auth/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/theme_provider.dart';
@@ -97,45 +98,42 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  // ✅ แก้ไข Logout - AuthGate จะ handle เอง
   Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Logout'),
+      content: const Text('Are you sure you want to logout?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text(
+            'Logout',
+            style: TextStyle(color: Colors.red),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  );
 
-    if (confirmed == true) {
-      try {
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logged out successfully')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error logging out: $e')),
-          );
-        }
-      }
-    }
+  if (confirmed == true) {
+    await FirebaseAuth.instance.signOut();
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => const LoginPage(),
+      ),
+      (route) => false,
+    );
   }
+}
 
   void _showFocusTimeDialog() {
     showDialog(
@@ -334,7 +332,6 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_isLoading) {
       return Scaffold(
         body: Container(
-          // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
@@ -368,7 +365,6 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
       ),
       body: Container(
-        // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -502,7 +498,6 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          // ✅ เปลี่ยนสี card ตามธีม
           color: isDarkMode
               ? Colors.white.withOpacity(0.08)
               : Theme.of(context).cardColor,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.onLoggedIn, this.onTapSignUp});
@@ -89,9 +89,9 @@ class _LoginPageState extends State<LoginPage> {
       final UserCredential userCredential =
           await FirebaseAuth.instance.signInWithCredential(credential);
 
-      if (mounted && userCredential.user != null) {
-        widget.onLoggedIn?.call();
-      }
+        if (mounted && userCredential.user != null) {
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
         final msg = switch (e.code) {
@@ -101,63 +101,6 @@ class _LoginPageState extends State<LoginPage> {
           'operation-not-allowed' => 'Google Sign-In not enabled',
           'user-disabled' => 'User account has been disabled',
           'user-not-found' => 'User not found',
-          _ => 'Firebase error: ${e.code}',
-        };
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(msg),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
-
-  // ✅ Sign in with Apple
-  Future<void> _signInWithApple() async {
-    setState(() => loading = true);
-    ScaffoldMessenger.of(context).clearSnackBars();
-
-    try {
-      final appleCredential = await SignInWithApple.getAppleIDCredential(
-        scopes: [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-      );
-
-      final oauthCredential = OAuthProvider("apple.com").credential(
-        idToken: appleCredential.identityToken,
-        accessToken: appleCredential.authorizationCode,
-      );
-
-      final userCredential =
-          await FirebaseAuth.instance.signInWithCredential(oauthCredential);
-
-      if (mounted && userCredential.user != null) {
-        widget.onLoggedIn?.call();
-      }
-    } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        final msg = switch (e.code) {
-          'account-exists-with-different-credential' =>
-            'Account exists with different provider',
-          'invalid-credential' => 'Invalid credential',
-          'operation-not-allowed' => 'Apple Sign-In not enabled',
-          'user-disabled' => 'User account has been disabled',
           _ => 'Firebase error: ${e.code}',
         };
         ScaffoldMessenger.of(context).showSnackBar(
@@ -301,52 +244,9 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ✅ Apple Sign-In Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: loading ? null : _signInWithApple,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black87,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 2,
-                        ),
-                        child: loading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.apple,
-                                    size: 24,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Sign in with Apple',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
+                  
+                      
+                    
                   ],
                 ),
               ),

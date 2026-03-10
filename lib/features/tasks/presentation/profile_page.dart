@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/task_repository.dart';
 import '../data/task_model.dart';
+import 'package:intl/intl.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -15,6 +17,32 @@ class _ProfilePageState extends State<ProfilePage>
   late TaskRepository _repository;
   late Future<Map<String, dynamic>> _stats;
   late Future<List<TaskModel>> _completedTasks;
+  
+  String _fullName = '';
+  String _bio = '';
+  String _gender = 'Not specified';
+  String _dateOfBirth = 'Not set';
+  String? _profilePhotoUrl;
+  String? _selectedAssetImage;
+  bool _isLoadingProfile = true;
+
+  final List<String> _catImages = [
+    'assets/images/output (1).png',
+    'assets/images/output (2).png',
+    'assets/images/output (3).png',
+    'assets/images/output (4).png',
+    'assets/images/output (5).png',
+    'assets/images/output (6).png',
+    'assets/images/output (7).png',
+    'assets/images/output (8).png',
+    'assets/images/output (9).png',
+    'assets/images/output (10).png',
+    'assets/images/output (11).png',
+    'assets/images/output (12).png',
+    'assets/images/output (13).png',
+    'assets/images/output (14).png',
+    'assets/images/output (15).png',
+  ];
 
   @override
   bool get wantKeepAlive => true;
@@ -26,11 +54,360 @@ class _ProfilePageState extends State<ProfilePage>
     if (user != null) {
       _repository = TaskRepositoryImpl(userId: user.uid);
     }
+    _loadProfileData();
     _loadStats();
     _loadCompletedTasks();
   }
 
+  Future<void> _loadProfileData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (mounted) {
+          if (doc.exists) {
+            setState(() {
+              _fullName = doc['fullName'] ?? user.displayName ?? '';
+              _bio = doc['bio'] ?? '';
+              _gender = doc['gender'] ?? 'Not specified';
+              _dateOfBirth = doc['dateOfBirth'] ?? 'Not set';
+              _selectedAssetImage = doc['selectedAssetImage'];
+              _profilePhotoUrl = doc['profilePhotoUrl'] ?? user.photoURL;
+              _isLoadingProfile = false;
+            });
+          } else {
+            setState(() {
+              _fullName = user.displayName ?? '';
+              _profilePhotoUrl = user.photoURL;
+              _isLoadingProfile = false;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+      if (mounted) {
+        setState(() => _isLoadingProfile = false);
+      }
+    }
+  }
+
+  Future<void> _selectCatImage(String imagePath) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({
+          'selectedAssetImage': imagePath,
+          'profilePhotoUrl': null,
+        }, SetOptions(merge: true));
+
+        setState(() {
+          _selectedAssetImage = imagePath;
+          _profilePhotoUrl = null;
+        });
+
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile picture updated!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  void _showCatImagePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1B4B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Choose Cat Avatar",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              GridView.builder(
+                shrinkWrap: true,
+                itemCount: _catImages.length,
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemBuilder: (context, index) {
+                  final image = _catImages[index];
+                  final selected = _selectedAssetImage == image;
+
+                  return GestureDetector(
+                    onTap: () => _selectCatImage(image),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: selected
+                              ? Colors.orange
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset(image),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 10)
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEditProfileDialog() {
+    final nameController = TextEditingController(text: _fullName);
+    final bioController = TextEditingController(text: _bio);
+
+    String selectedGender = _gender;
+    String selectedDate = _dateOfBirth;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Edit Profile'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    /// Full Name
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Full Name',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    /// Bio
+                    TextField(
+                      controller: bioController,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: 'Bio',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    /// Gender
+                    DropdownButtonFormField<String>(
+                      value: selectedGender,
+                      decoration: InputDecoration(
+                        labelText: 'Gender',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: ['Male', 'Female', 'Other', 'Not specified']
+                          .map((g) => DropdownMenuItem(
+                                value: g,
+                                child: Text(g),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setStateDialog(() {
+                          selectedGender = value ?? 'Not specified';
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    /// Date of Birth
+                    GestureDetector(
+                      onTap: () async {
+                        DateTime initialDate = DateTime.now();
+
+                        try {
+                          if (selectedDate != 'Not set') {
+                            initialDate = DateTime.parse(selectedDate);
+                          }
+                        } catch (_) {}
+
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: initialDate,
+                          firstDate: DateTime(1950),
+                          lastDate: DateTime.now(),
+                        );
+
+                        if (picked != null) {
+                          setStateDialog(() {
+                            selectedDate =
+                                DateFormat('yyyy-MM-dd').format(picked);
+                          });
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade400),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Date of Birth',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  selectedDate,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Icon(
+                              Icons.calendar_today,
+                              color: Theme.of(context).primaryColor,
+                              size: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    await _saveProfileData(
+                      nameController.text,
+                      bioController.text,
+                      selectedGender,
+                      selectedDate,
+                    );
+
+                    if (mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _saveProfileData(
+    String name,
+    String bio,
+    String gender,
+    String dateOfBirth,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({
+          'fullName': name,
+          'bio': bio,
+          'gender': gender,
+          'dateOfBirth': dateOfBirth,
+          'profilePhotoUrl': _profilePhotoUrl,
+          'selectedAssetImage': _selectedAssetImage,
+        }, SetOptions(merge: true));
+
+        setState(() {
+          _fullName = name;
+          _bio = bio;
+          _gender = gender;
+          _dateOfBirth = dateOfBirth;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile updated!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _refreshData() async {
+    _loadProfileData();
     _loadStats();
     _loadCompletedTasks();
   }
@@ -70,7 +447,6 @@ class _ProfilePageState extends State<ProfilePage>
       body: RefreshIndicator(
         onRefresh: _refreshData,
         child: Container(
-          // ✅ เปลี่ยน gradient เป็นสีเข้มเหมือน login
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
@@ -89,7 +465,10 @@ class _ProfilePageState extends State<ProfilePage>
               padding: const EdgeInsets.only(bottom: 20),
               child: Column(
                 children: [
-                  _buildHeaderSection(currentUser, isDarkMode),
+                  _buildAvatarSection(),
+                  const SizedBox(height: 20),
+                  const SizedBox(height: 20),
+                  _buildProfileCard(currentUser),
                   const SizedBox(height: 20),
                   _buildStatsSection(isDarkMode),
                   const SizedBox(height: 20),
@@ -103,98 +482,357 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  // ✅ Header Section
-  Widget _buildHeaderSection(User? user, bool isDarkMode) {
-    final email = user?.email ?? 'User';
-    final name = email.split('@').first;
-    final initials = name.substring(0, 1).toUpperCase();
-
-    return Stack(
-      children: [
-        CustomPaint(
-          size: const Size(double.infinity, 200),
-          painter: WaveHeaderPainter(isDarkMode: isDarkMode),
+// ✅ Avatar Section
+Widget _buildAvatarSection() {
+  return Stack(
+    children: [
+      CustomPaint(
+        size: const Size(double.infinity, 220),
+        painter: WaveHeaderPainter(
+          isDarkMode: Theme.of(context).brightness == Brightness.dark,
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      ),
+
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        child: Center(
           child: Column(
             children: [
-              const SizedBox(height: 40),
-              // ✅ Profile Circle
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 4,
-                  ),
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).primaryColor,
-                      Theme.of(context).primaryColor.withOpacity(0.6),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    initials,
-                    style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+
+              const SizedBox(height: 20),
+
+              /// Avatar
+              Stack(
                 children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: _selectedAssetImage != null
+                            ? Image.asset(
+                                _selectedAssetImage!,
+                                key: ValueKey(_selectedAssetImage),
+                                fit: BoxFit.cover,
+                              )
+                            : (_profilePhotoUrl != null
+                                ? Image.network(
+                                    _profilePhotoUrl!,
+                                    key: ValueKey(_profilePhotoUrl),
+                                    fit: BoxFit.cover,
+                                  )
+                                : _buildDefaultAvatar()),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Theme.of(context).primaryColor,
-                        width: 1.5,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Edit',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
+
+                  /// ปุ่มแก้รูป
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: _showCatImagePicker,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Theme.of(context).primaryColor,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
+
+              const SizedBox(height: 12),
+
+              /// ชื่อ
+              Text(
+                _fullName.isNotEmpty ? _fullName : "User",
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 4),
+
+              /// Bio
+              if (_bio.isNotEmpty)
+                Text(
+                  _bio,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.8),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+              if (_bio.isEmpty)
+                Text(
+                  "Add your bio",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
+
+              const SizedBox(height: 12),
+
+              /// ปุ่ม Edit Profile
+              GestureDetector(
+                onTap: _showEditProfileDialog,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Theme.of(context).primaryColor,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    "Edit Profile",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-      ],
+      ),
+    ],
+  );
+}
+
+  // ✅ Profile Header Card
+  Widget _buildProfileHeaderCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            _fullName.isNotEmpty ? _fullName : 'User',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          if (_bio.isNotEmpty)
+            Text(
+              _bio,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          if (_bio.isEmpty)
+            Text(
+              'Add your bio',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white.withOpacity(0.6),
+                fontStyle: FontStyle.italic,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 10,
+            ),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).primaryColor,
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: GestureDetector(
+              onTap: _showEditProfileDialog,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.edit,
+                    color: Theme.of(context).primaryColor,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Edit Profile',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ Profile Card
+  Widget _buildProfileCard(User? user) {
+    final email = user?.email ?? "User";
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildProfileItem(
+            icon: Icons.email,
+            title: "Email",
+            value: email,
+          ),
+          const Divider(color: Colors.white30),
+          _buildProfileItem(
+            icon: Icons.person,
+            title: "Gender",
+            value: _gender,
+          ),
+          const Divider(color: Colors.white30),
+          _buildProfileItem(
+            icon: Icons.cake,
+            title: "Date of Birth",
+            value: _dateOfBirth,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ Profile Item
+  Widget _buildProfileItem({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white70),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.white60,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, color: Colors.white54),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).primaryColor,
+            Theme.of(context).primaryColor.withOpacity(0.6),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          _fullName.isNotEmpty ? _fullName[0].toUpperCase() : '?',
+          style: const TextStyle(
+            fontSize: 40,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
     );
   }
 
@@ -204,11 +842,9 @@ class _ProfilePageState extends State<ProfilePage>
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // 🏆 Focus Completed
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              // ✅ เปลี่ยนสี card
               color: isDarkMode
                   ? const Color.fromARGB(255, 41, 28, 114).withOpacity(0.6)
                   : Colors.white,
@@ -274,7 +910,6 @@ class _ProfilePageState extends State<ProfilePage>
             ),
           ),
           const SizedBox(height: 12),
-          // Focus Sessions + Total Time
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -500,7 +1135,6 @@ class _ProfilePageState extends State<ProfilePage>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        // ✅ เปลี่ยนสี task item
         color: isDarkMode
             ? Colors.green.withOpacity(0.15)
             : Colors.green.shade50,
