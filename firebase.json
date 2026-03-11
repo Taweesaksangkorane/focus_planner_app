@@ -1,1 +1,48 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"focus-planner888","appId":"1:609073551752:android:49978177a7ed1c6c76023d","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"focus-planner888","configurations":{"android":"1:609073551752:android:49978177a7ed1c6c76023d","ios":"1:609073551752:ios:aec160e91772e2e676023d","macos":"1:609073551752:ios:aec160e91772e2e676023d","web":"1:609073551752:web:75ec074aada852c576023d","windows":"1:609073551752:web:01ede8ec27ae37be76023d"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "focus-planner888",
+          "appId": "1:609073551752:android:49978177a7ed1c6c76023d",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "focus-planner888",
+          "configurations": {
+            "android": "1:609073551752:android:49978177a7ed1c6c76023d",
+            "ios": "1:609073551752:ios:aec160e91772e2e676023d",
+            "macos": "1:609073551752:ios:aec160e91772e2e676023d",
+            "web": "1:609073551752:web:75ec074aada852c576023d",
+            "windows": "1:609073551752:web:01ede8ec27ae37be76023d"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "site": "focus-planner888",
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}

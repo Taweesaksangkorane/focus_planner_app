@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/task_repository.dart';
 import '../data/task_model.dart';
 import 'package:intl/intl.dart';
+import '../../../core/services/level_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -15,6 +16,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage>
     with AutomaticKeepAliveClientMixin {
   late TaskRepository _repository;
+  late LevelService _levelService;
   late Future<Map<String, dynamic>> _stats;
   late Future<List<TaskModel>> _completedTasks;
   
@@ -25,6 +27,11 @@ class _ProfilePageState extends State<ProfilePage>
   String? _profilePhotoUrl;
   String? _selectedAssetImage;
   bool _isLoadingProfile = true;
+
+  // ✅ Level Variables
+  int _userLevel = 1;
+  int _completedTasksCount = 0;
+  int _exp = 0;
 
   final List<String> _catImages = [
     'assets/images/output (1).png',
@@ -54,9 +61,11 @@ class _ProfilePageState extends State<ProfilePage>
     if (user != null) {
       _repository = TaskRepositoryImpl(userId: user.uid);
     }
+    _levelService = LevelService();
     _loadProfileData();
     _loadStats();
     _loadCompletedTasks();
+    _loadUserLevel();
   }
 
   Future<void> _loadProfileData() async {
@@ -93,6 +102,23 @@ class _ProfilePageState extends State<ProfilePage>
       if (mounted) {
         setState(() => _isLoadingProfile = false);
       }
+    }
+  }
+
+  // ✅ Load User Level
+  Future<void> _loadUserLevel() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final levelData = await _levelService.getUserLevel(user.uid);
+        setState(() {
+          _userLevel = levelData['level'];
+          _completedTasksCount = levelData['completedTasks'];
+          _exp = levelData['exp'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user level: $e');
     }
   }
 
@@ -410,6 +436,7 @@ class _ProfilePageState extends State<ProfilePage>
     _loadProfileData();
     _loadStats();
     _loadCompletedTasks();
+    _loadUserLevel();
   }
 
   Future<void> _loadStats() async {
@@ -467,6 +494,8 @@ class _ProfilePageState extends State<ProfilePage>
                 children: [
                   _buildAvatarSection(),
                   const SizedBox(height: 20),
+                  // ✅ Level Card
+                  _buildLevelCard(isDarkMode),
                   const SizedBox(height: 20),
                   _buildProfileCard(currentUser),
                   const SizedBox(height: 20),
@@ -482,249 +511,293 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-// ✅ Avatar Section
-Widget _buildAvatarSection() {
-  return Stack(
-    children: [
-      CustomPaint(
-        size: const Size(double.infinity, 220),
-        painter: WaveHeaderPainter(
-          isDarkMode: Theme.of(context).brightness == Brightness.dark,
-        ),
-      ),
+  // ✅ Level Card Widget
+  Widget _buildLevelCard(bool isDarkMode) {
+    final levelProgress = _levelService.getLevelProgress(_completedTasksCount);
+    final progressPercentage = levelProgress['progressPercentage'] as double;
+    final tasksUntilNextLevel = levelProgress['tasksUntilNextLevel'] as int;
 
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        child: Center(
-          child: Column(
-            children: [
-
-              const SizedBox(height: 20),
-
-              /// Avatar
-              Stack(
-                children: [
-                  Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        child: _selectedAssetImage != null
-                            ? Image.asset(
-                                _selectedAssetImage!,
-                                key: ValueKey(_selectedAssetImage),
-                                fit: BoxFit.cover,
-                              )
-                            : (_profilePhotoUrl != null
-                                ? Image.network(
-                                    _profilePhotoUrl!,
-                                    key: ValueKey(_profilePhotoUrl),
-                                    fit: BoxFit.cover,
-                                  )
-                                : _buildDefaultAvatar()),
-                      ),
-                    ),
-                  ),
-
-                  /// ปุ่มแก้รูป
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: _showCatImagePicker,
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Theme.of(context).primaryColor,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 2,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          color: Colors.white,
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              /// ชื่อ
-              Text(
-                _fullName.isNotEmpty ? _fullName : "User",
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 4),
-
-              /// Bio
-              if (_bio.isNotEmpty)
-                Text(
-                  _bio,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withOpacity(0.8),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-              if (_bio.isEmpty)
-                Text(
-                  "Add your bio",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.white.withOpacity(0.6),
-                  ),
-                ),
-
-              const SizedBox(height: 12),
-
-              /// ปุ่ม Edit Profile
-              GestureDetector(
-                onTap: _showEditProfileDialog,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Theme.of(context).primaryColor,
-                      width: 2,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    "Edit Profile",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
-  // ✅ Profile Header Card
-  Widget _buildProfileHeaderCard() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).primaryColor.withOpacity(0.3),
+            Theme.of(context).primaryColor.withOpacity(0.1),
+          ],
+        ),
         color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.3),
-            blurRadius: 12,
+            blurRadius: 8,
             offset: const Offset(0, 4),
           )
         ],
       ),
       child: Column(
         children: [
-          Text(
-            _fullName.isNotEmpty ? _fullName : 'User',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          if (_bio.isNotEmpty)
-            Text(
-              _bio,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.white.withOpacity(0.8),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          if (_bio.isEmpty)
-            Text(
-              'Add your bio',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.white.withOpacity(0.6),
-                fontStyle: FontStyle.italic,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 10,
-            ),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: Theme.of(context).primaryColor,
-                width: 2,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: GestureDetector(
-              onTap: _showEditProfileDialog,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+          // ✅ Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.edit,
-                    color: Theme.of(context).primaryColor,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
                   Text(
-                    'Edit Profile',
+                    'Level',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$_userLevel',
+                    style: const TextStyle(
+                      fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: Theme.of(context).primaryColor,
+                      color: Colors.white,
                     ),
                   ),
                 ],
               ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                ),
+                child: Icon(
+                  Icons.star_rounded,
+                  size: 36,
+                  color: Theme.of(context).primaryColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ✅ Progress Bar
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Progress to Level ${_userLevel + 1}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
+                  Text(
+                    '$_exp/5',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progressPercentage / 100,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withOpacity(0.1),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).primaryColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ✅ Info
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Complete $tasksUntilNextLevel more task${tasksUntilNextLevel > 1 ? 's' : ''} to reach Level ${_userLevel + 1}',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.white.withOpacity(0.8),
+              ),
+              textAlign: TextAlign.center,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  // ✅ Avatar Section
+  Widget _buildAvatarSection() {
+    return Stack(
+      children: [
+        CustomPaint(
+          size: const Size(double.infinity, 220),
+          painter: WaveHeaderPainter(
+            isDarkMode: Theme.of(context).brightness == Brightness.dark,
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Center(
+            child: Column(
+              children: [
+
+                const SizedBox(height: 20),
+
+                /// Avatar
+                Stack(
+                  children: [
+                    Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: _selectedAssetImage != null
+                              ? Image.asset(
+                                  _selectedAssetImage!,
+                                  key: ValueKey(_selectedAssetImage),
+                                  fit: BoxFit.cover,
+                                )
+                              : (_profilePhotoUrl != null
+                                  ? Image.network(
+                                      _profilePhotoUrl!,
+                                      key: ValueKey(_profilePhotoUrl),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : _buildDefaultAvatar()),
+                        ),
+                      ),
+                    ),
+
+                    /// ปุ่มแก้รูป
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _showCatImagePicker,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Theme.of(context).primaryColor,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                /// ชื่อ
+                Text(
+                  _fullName.isNotEmpty ? _fullName : "User",
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 4),
+
+                /// Bio
+                if (_bio.isNotEmpty)
+                  Text(
+                    _bio,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.8),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                if (_bio.isEmpty)
+                  Text(
+                    "Add your bio",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.white.withOpacity(0.6),
+                    ),
+                  ),
+
+                const SizedBox(height: 12),
+
+                /// ปุ่ม Edit Profile
+                GestureDetector(
+                  onTap: _showEditProfileDialog,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(context).primaryColor,
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      "Edit Profile",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

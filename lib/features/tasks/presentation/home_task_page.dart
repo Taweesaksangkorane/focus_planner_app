@@ -8,6 +8,7 @@ import 'widgets/task_card.dart';
 import 'task_detail_page.dart';
 import 'profile_page.dart';
 import '../../settings/presentation/settings_page.dart';
+import '../../../core/services/task_reminder_manager.dart';
 
 class HomeTaskPage extends StatefulWidget {
   const HomeTaskPage({Key? key}) : super(key: key);
@@ -29,6 +30,8 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
   void initState() {
     super.initState();
     _initializeRepository();
+    // ✅ ตรวจสอบ Task ที่กำลังจะถึงเวลา
+    _checkTaskReminders();
   }
 
   // ✅ Initialize Repository dengan userId
@@ -48,16 +51,35 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
     }
   }
 
+  Future<void> _checkTaskReminders() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user != null) {
+        await TaskReminderManager().checkAndNotifyUpcomingTasks(user.uid);
+      }
+    } catch (e) {
+      debugPrint("Reminder error: $e");
+    }
+  }
+
   Future<void> _loadTasks() async {
     setState(() => isLoading = true);
+
     try {
       final loadedTasks = await _taskRepository.getAllActiveTasks();
+
       setState(() {
         tasks = loadedTasks;
         isLoading = false;
       });
+
+      // ✅ ตรวจ reminder หลังโหลด tasks
+      await _checkTaskReminders();
+
     } catch (e) {
       setState(() => isLoading = false);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading tasks: $e')),

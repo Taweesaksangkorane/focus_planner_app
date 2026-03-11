@@ -92,6 +92,9 @@ class ReminderModel {
       isEnabled: isEnabled ?? this.isEnabled,
     );
   }
+
+  @override
+  String toString() => '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 }
 
 class TaskModel {
@@ -104,7 +107,10 @@ class TaskModel {
   final bool isCompleted;
   final DateTime? completedAt;
   final int? focusTimeSpent;
-  final List<ReminderModel> reminders; // ✅ เพิ่ม reminders
+  final List<ReminderModel> reminders;
+  final String userId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   TaskModel({
     required this.id,
@@ -116,7 +122,10 @@ class TaskModel {
     this.isCompleted = false,
     this.completedAt,
     this.focusTimeSpent,
-    this.reminders = const [], // ✅ default เป็น empty list
+    this.reminders = const [],
+    required this.userId,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
   TaskModel copyWith({
@@ -130,6 +139,9 @@ class TaskModel {
     DateTime? completedAt,
     int? focusTimeSpent,
     List<ReminderModel>? reminders,
+    String? userId,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return TaskModel(
       id: id ?? this.id,
@@ -142,6 +154,9 @@ class TaskModel {
       completedAt: completedAt ?? this.completedAt,
       focusTimeSpent: focusTimeSpent ?? this.focusTimeSpent,
       reminders: reminders ?? this.reminders,
+      userId: userId ?? this.userId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -156,8 +171,9 @@ class TaskModel {
       'isCompleted': isCompleted,
       'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
       'focusTimeSpent': focusTimeSpent,
-      'reminders': reminders.map((r) => r.toMap()).toList(), // ✅ เพิ่ม
-      'createdAt': FieldValue.serverTimestamp(),
+      'reminders': reminders.map((r) => r.toMap()).toList(),
+      'userId': userId,
+      'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -190,7 +206,151 @@ class TaskModel {
           ? (data['completedAt'] as Timestamp).toDate()
           : null,
       focusTimeSpent: data['focusTimeSpent'],
-      reminders: reminders, 
+      reminders: reminders,
+      userId: data['userId'] ?? '',
+      createdAt: data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
+      updatedAt: data['updatedAt'] != null
+          ? (data['updatedAt'] as Timestamp).toDate()
+          : DateTime.now(),
     );
   }
+
+  // ✅ ตรวจสอบว่าถึง Due Date แล้วหรือไม่
+  bool get isOverdue {
+    if (dueDate == null || isCompleted) return false;
+    return DateTime.now().isAfter(dueDate!);
+  }
+
+  // ✅ ตรวจสอบว่า Due วันนี้หรือไม่
+  bool get isDueToday {
+    if (dueDate == null) return false;
+    final now = DateTime.now();
+    return dueDate!.year == now.year &&
+        dueDate!.month == now.month &&
+        dueDate!.day == now.day;
+  }
+
+  // ✅ ตรวจสอบว่า Due พรุ่งนี้หรือไม่
+  bool get isDueTomorrow {
+    if (dueDate == null) return false;
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    return dueDate!.year == tomorrow.year &&
+        dueDate!.month == tomorrow.month &&
+        dueDate!.day == tomorrow.day;
+  }
+
+  // ✅ ตรวจสอบว่าใกล้ Due Date หรือไม่ (7 วัน)
+  bool get isUrgent {
+    if (dueDate == null || isCompleted) return false;
+    final difference = dueDate!.difference(DateTime.now()).inDays;
+    return difference >= 0 && difference <= 7;
+  }
+
+  // ✅ ได้ทุกสิ่งที่เหลือจน Due Date
+  Duration get timeUntilDue {
+    if (dueDate == null) return Duration.zero;
+    return dueDate!.difference(DateTime.now());
+  }
+
+  // ✅ Format time until due
+  String get formattedTimeUntilDue {
+    if (dueDate == null) return 'No due date';
+    if (isCompleted) return 'Completed';
+    
+    final duration = timeUntilDue;
+    if (duration.isNegative) return 'Overdue';
+    
+    if (duration.inDays > 0) {
+      return '${duration.inDays} day${duration.inDays > 1 ? 's' : ''} left';
+    } else if (duration.inHours > 0) {
+      return '${duration.inHours} hour${duration.inHours > 1 ? 's' : ''} left';
+    } else {
+      return '${duration.inMinutes} minute${duration.inMinutes > 1 ? 's' : ''} left';
+    }
+  }
+
+  // ✅ Add Reminder
+  TaskModel addReminder(ReminderModel reminder) {
+    final updatedReminders = [...reminders, reminder];
+    return copyWith(reminders: updatedReminders);
+  }
+
+  // ✅ Remove Reminder
+  TaskModel removeReminder(String reminderId) {
+    final updatedReminders = reminders
+        .where((reminder) => reminder.id != reminderId)
+        .toList();
+    return copyWith(reminders: updatedReminders);
+  }
+
+  // ✅ Update Reminder
+  TaskModel updateReminder(ReminderModel reminder) {
+    final updatedReminders = reminders.map((r) {
+      return r.id == reminder.id ? reminder : r;
+    }).toList();
+    return copyWith(reminders: updatedReminders);
+  }
+
+  // ✅ Toggle Reminder
+  TaskModel toggleReminder(String reminderId) {
+    final updatedReminders = reminders.map((r) {
+      if (r.id == reminderId) {
+        return r.copyWith(isEnabled: !r.isEnabled);
+      }
+      return r;
+    }).toList();
+    return copyWith(reminders: updatedReminders);
+  }
+
+  // ✅ Get enabled reminders
+  List<ReminderModel> get enabledReminders {
+    return reminders.where((r) => r.isEnabled).toList();
+  }
+
+  // ✅ Has reminders
+  bool get hasReminders => reminders.isNotEmpty;
+
+  // ✅ Get progress percentage (focus time)
+  double get progressPercentage {
+    if (focusTimeSpent == null) return 0.0;
+    // Assuming 25 minutes (Pomodoro) is 100%
+    return (focusTimeSpent! / 25).clamp(0.0, 1.0);
+  }
+
+  // ✅ Get status text
+  String get statusText {
+    if (isCompleted) return 'Completed ✓';
+    if (isOverdue) return 'Overdue ⚠️';
+    if (isDueToday) return 'Due Today 📌';
+    if (isDueTomorrow) return 'Due Tomorrow 📅';
+    if (isUrgent) return 'Urgent 🔥';
+    return 'Pending';
+  }
+
+  // ✅ Validate task
+  bool get isValid {
+    return title.isNotEmpty && 
+           description.isNotEmpty && 
+           category.isNotEmpty;
+  }
+
+  @override
+  String toString() {
+    return 'TaskModel(id: $id, title: $title, priority: ${priority.label}, '
+        'isCompleted: $isCompleted, reminders: ${reminders.length})';
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TaskModel &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          priority == other.priority;
+
+  @override
+  int get hashCode => id.hashCode ^ title.hashCode ^ priority.hashCode;
 }

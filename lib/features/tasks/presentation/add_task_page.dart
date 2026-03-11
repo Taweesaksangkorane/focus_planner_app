@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'select_date_page.dart';
 import '../data/task_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AddTaskPage extends StatefulWidget {
   const AddTaskPage({Key? key}) : super(key: key);
@@ -197,6 +198,11 @@ class _AddTaskPageState extends State<AddTaskPage> {
   void _createTask() {
     if (!formKey.currentState!.validate()) return;
 
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final now = DateTime.now();
+
     final task = TaskModel(
       id: const Uuid().v4(),
       title: titleCtl.text.trim(),
@@ -205,7 +211,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
       dueDate: _selectedDate,
       priority: _selectedPriority,
       isCompleted: false,
-      reminders: _reminders, // ✅ เพิ่ม reminders
+      reminders: _reminders,
+
+      // ✅ ต้องเพิ่ม 3 ตัวนี้
+      userId: user.uid,
+      createdAt: now,
+      updatedAt: now,
     );
 
     Navigator.pop(context, task);

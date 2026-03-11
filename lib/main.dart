@@ -8,12 +8,19 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'features/tasks/presentation/auth_gate.dart';
 import 'core/providers/theme_provider.dart';
+import 'core/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // ✅ Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // ✅ Initialize Notifications
+  await NotificationService().initialize();
+  
   runApp(const FocusPlannerApp());
 }
 

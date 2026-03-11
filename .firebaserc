@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "focus-planner888"
+  },
+  "targets": {
+    "plan-focus-app888": {
+      "hosting": {
+        "default": [
+          "focus-planner888"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:focus_planner_app/features/auth/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/services/notification_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -17,6 +19,9 @@ class _SettingsPageState extends State<SettingsPage> {
   int _focusTimeMinutes = 25;
   int _breakTimeMinutes = 5;
   bool _notificationsEnabled = true;
+  bool _soundEnabled = true;
+  bool _vibrationEnabled = true;
+  bool _autoStartNextSession = false;
   bool _isLoading = true;
 
   @override
@@ -32,10 +37,14 @@ class _SettingsPageState extends State<SettingsPage> {
         _focusTimeMinutes = _prefs.getInt('focusTime') ?? 25;
         _breakTimeMinutes = _prefs.getInt('breakTime') ?? 5;
         _notificationsEnabled = _prefs.getBool('notifications') ?? true;
+        _soundEnabled = _prefs.getBool('sound') ?? true;
+        _vibrationEnabled = _prefs.getBool('vibration') ?? true;
+        _autoStartNextSession = _prefs.getBool('autoStartNextSession') ?? false;
         _isLoading = false;
       });
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading settings: $e')),
         );
@@ -88,7 +97,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _saveNotifications(bool enabled) async {
     try {
       await _prefs.setBool('notifications', enabled);
-      setState(() => _notificationsEnabled = enabled);
+      if (mounted) {
+        setState(() => _notificationsEnabled = enabled);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -98,42 +109,86 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // ✅ แก้ไข Logout - AuthGate จะ handle เอง
-  Future<void> _logout() async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Logout'),
-      content: const Text('Are you sure you want to logout?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text(
-            'Logout',
-            style: TextStyle(color: Colors.red),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  if (confirmed == true) {
-    await FirebaseAuth.instance.signOut();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (context) => const LoginPage(),
-      ),
-      (route) => false,
-    );
+  Future<void> _saveSound(bool enabled) async {
+    try {
+      await _prefs.setBool('sound', enabled);
+      if (mounted) {
+        setState(() => _soundEnabled = enabled);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving settings: $e')),
+        );
+      }
+    }
   }
-}
+
+  Future<void> _saveVibration(bool enabled) async {
+    try {
+      await _prefs.setBool('vibration', enabled);
+      if (mounted) {
+        setState(() => _vibrationEnabled = enabled);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving settings: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveAutoStartNextSession(bool enabled) async {
+    try {
+      await _prefs.setBool('autoStartNextSession', enabled);
+      if (mounted) {
+        setState(() => _autoStartNextSession = enabled);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving settings: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const LoginPage(),
+        ),
+        (route) => false,
+      );
+    }
+  }
 
   void _showFocusTimeDialog() {
     showDialog(
@@ -158,6 +213,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       (minutes) => ListTile(
                         title: Text('$minutes minutes'),
                         selected: _focusTimeMinutes == minutes,
+                        selectedTileColor:
+                            Theme.of(context).primaryColor.withOpacity(0.3),
                         onTap: () {
                           Navigator.pop(context);
                           _saveFocusTime(minutes);
@@ -196,6 +253,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       (minutes) => ListTile(
                         title: Text('$minutes minutes'),
                         selected: _breakTimeMinutes == minutes,
+                        selectedTileColor:
+                            Theme.of(context).primaryColor.withOpacity(0.3),
                         onTap: () {
                           Navigator.pop(context);
                           _saveBreakTime(minutes);
@@ -211,41 +270,86 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showNotificationsDialog() {
+void _showNotificationsDialog() {
+  showDialog(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setStateDialog) {
+        return AlertDialog(
+          title: const Text('Notification Settings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ✅ Enable Notifications
+              SwitchListTile(
+                title: const Text('Enable Notifications'),
+                value: _notificationsEnabled,
+                onChanged: (value) {
+                  setStateDialog(() {
+                    _notificationsEnabled = value;
+                    _saveNotifications(value);
+                  });
+                },
+              ),
+              const Divider(),
+              
+              // ✅ Sound - ลบ enabled ออก
+              SwitchListTile(
+                title: const Text('Sound'),
+                subtitle: const Text('Play sound on notification'),
+                value: _soundEnabled,
+                onChanged: _notificationsEnabled
+                    ? (value) {
+                        setStateDialog(() {
+                          _soundEnabled = value;
+                          _saveSound(value);
+                        });
+                      }
+                    : null,
+              ),
+              
+              // ✅ Vibration - ลบ enabled ออก
+              SwitchListTile(
+                title: const Text('Vibration'),
+                subtitle: const Text('Vibrate on notification'),
+                value: _vibrationEnabled,
+                onChanged: _notificationsEnabled
+                    ? (value) {
+                        setStateDialog(() {
+                          _vibrationEnabled = value;
+                          _saveVibration(value);
+                        });
+                      }
+                    : null,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+  void _showAdvancedSettingsDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Notifications'),
+        title: const Text('Advanced Settings'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Get notified when:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            CheckboxListTile(
-              title: const Text('Focus session starts'),
-              value: _notificationsEnabled,
+            SwitchListTile(
+              title: const Text('Auto-start Next Session'),
+              subtitle: const Text('Automatically start break after focus'),
+              value: _autoStartNextSession,
               onChanged: (value) {
-                Navigator.pop(context);
-                _saveNotifications(value ?? false);
-              },
-            ),
-            CheckboxListTile(
-              title: const Text('Break time ends'),
-              value: _notificationsEnabled,
-              onChanged: (value) {
-                Navigator.pop(context);
-                _saveNotifications(value ?? false);
-              },
-            ),
-            CheckboxListTile(
-              title: const Text('Task reminders'),
-              value: _notificationsEnabled,
-              onChanged: (value) {
-                Navigator.pop(context);
-                _saveNotifications(value ?? false);
+                _saveAutoStartNextSession(value);
               },
             ),
           ],
@@ -254,6 +358,68 @@ class _SettingsPageState extends State<SettingsPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('About Focus Planner'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.timer_rounded,
+                      size: 48,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Focus Planner',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      'Version 1.0.0',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'A productivity app to help you focus and manage your tasks effectively using the Pomodoro technique.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '© 2024 Focus Planner. All rights reserved.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it!'),
           ),
         ],
       ),
@@ -272,22 +438,22 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               _buildHelpSection(
                 '📝 Creating Tasks',
-                '1. Go to Home tab\n2. Click the + button\n3. Fill in task details\n4. Select due date\n5. Priority is set automatically',
+                '1. Go to Home tab\n2. Click the + button\n3. Fill in task details\n4. Select due date\n5. Set priority level',
               ),
               const SizedBox(height: 16),
               _buildHelpSection(
                 '⏱️ Focus Timer',
-                '1. Select a task\n2. Click "Start Focus Timer"\n3. Timer will start counting\n4. Pause or complete when done\n5. Stats will be saved',
+                '1. Go to Focus tab\n2. Select urgent task\n3. Click "Start Focus"\n4. Timer will count down\n5. Task auto-saves',
               ),
               const SizedBox(height: 16),
               _buildHelpSection(
                 '📊 Profile & Stats',
-                '• View completed tasks\n• Track focus time\n• See achievements\n• Monitor progress',
+                '• View completed tasks\n• Track focus time\n• Check your level\n• Monitor progress',
               ),
               const SizedBox(height: 16),
               _buildHelpSection(
                 '⚙️ Settings',
-                '• Customize focus time\n• Adjust break duration\n• Toggle notifications\n• Manage preferences',
+                '• Customize focus time\n• Adjust break duration\n• Toggle notifications\n• Enable vibration',
               ),
             ],
           ),
@@ -316,7 +482,7 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 4),
         Text(
           content,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12,
             height: 1.5,
           ),
@@ -387,12 +553,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.white : Colors.white,
+                  color: Colors.white,
                 ),
               ),
               const SizedBox(height: 24),
 
-              // ✅ Theme Toggle
+              // ✅ Display Section
+              _buildSectionHeader('Display & Theme', isDarkMode),
+              const SizedBox(height: 12),
+
               Consumer<ThemeProvider>(
                 builder: (context, themeProvider, _) {
                   return _buildSettingCard(
@@ -410,9 +579,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   );
                 },
               ),
+              const SizedBox(height: 24),
+
+              // ✅ Timer Settings Section
+              _buildSectionHeader('Timer Settings', isDarkMode),
               const SizedBox(height: 12),
 
-              // ✅ Focus Time Settings
               _buildSettingCard(
                 icon: Icons.timer,
                 title: 'Focus Time',
@@ -422,7 +594,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 12),
 
-              // ✅ Break Time Settings
               _buildSettingCard(
                 icon: Icons.lunch_dining,
                 title: 'Break Time',
@@ -432,24 +603,48 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 12),
 
-              // ✅ Notifications Settings
+              _buildSettingCard(
+                icon: Icons.settings_suggest,
+                title: 'Advanced Settings',
+                subtitle: 'Auto-start next session: $_autoStartNextSession',
+                onTap: _showAdvancedSettingsDialog,
+                isDarkMode: isDarkMode,
+              ),
+              const SizedBox(height: 24),
+
+              // ✅ Notification Settings Section
+              _buildSectionHeader('Notifications', isDarkMode),
+              const SizedBox(height: 12),
+
               _buildSettingCard(
                 icon: Icons.notifications_rounded,
-                title: 'Notifications',
+                title: 'Notification Settings',
                 subtitle: _notificationsEnabled
-                    ? 'Notifications enabled'
-                    : 'Notifications disabled',
+                    ? 'Enabled'
+                    : 'Disabled',
                 onTap: _showNotificationsDialog,
                 isDarkMode: isDarkMode,
               ),
+              const SizedBox(height: 24),
+
+              // ✅ About & Help Section
+              _buildSectionHeader('About & Help', isDarkMode),
               const SizedBox(height: 12),
 
-              // ✅ Help & Support
               _buildSettingCard(
                 icon: Icons.help_rounded,
                 title: 'Help & Support',
                 subtitle: 'Learn how to use the app',
                 onTap: _showHelpDialog,
+                isDarkMode: isDarkMode,
+              ),
+              const SizedBox(height: 12),
+
+              _buildSettingCard(
+                icon: Icons.info_rounded,
+                title: 'About Focus Planner',
+                subtitle: 'Version 1.0.0',
+                onTap: _showAboutDialog,
                 isDarkMode: isDarkMode,
               ),
               const SizedBox(height: 32),
@@ -486,6 +681,17 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildSectionHeader(String title, bool isDarkMode) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: isDarkMode ? Colors.white : Colors.white,
+      ),
+    );
+  }
+
   Widget _buildSettingCard({
     required IconData icon,
     required String title,
@@ -500,7 +706,7 @@ class _SettingsPageState extends State<SettingsPage> {
         decoration: BoxDecoration(
           color: isDarkMode
               ? Colors.white.withOpacity(0.08)
-              : Theme.of(context).cardColor,
+              : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isDarkMode
