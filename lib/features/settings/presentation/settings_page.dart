@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/services/notification_service.dart';
-
+import '../../../core/services/notification_service.dart';
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
 
@@ -21,7 +21,6 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
   bool _soundEnabled = true;
   bool _vibrationEnabled = true;
-  bool _autoStartNextSession = false;
   bool _isLoading = true;
 
   @override
@@ -39,7 +38,6 @@ class _SettingsPageState extends State<SettingsPage> {
         _notificationsEnabled = _prefs.getBool('notifications') ?? true;
         _soundEnabled = _prefs.getBool('sound') ?? true;
         _vibrationEnabled = _prefs.getBool('vibration') ?? true;
-        _autoStartNextSession = _prefs.getBool('autoStartNextSession') ?? false;
         _isLoading = false;
       });
     } catch (e) {
@@ -53,9 +51,18 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveFocusTime(int minutes) async {
+    final oldValue = _focusTimeMinutes;  // ✅ เพิ่มบรรทัดนี้
     try {
       await _prefs.setInt('focusTime', minutes);
       setState(() => _focusTimeMinutes = minutes);
+      
+      // ✅ เพิ่มบรรทัดเหล่านี้
+      await NotificationService().notifySettingChanged(
+        settingName: 'Focus Time',
+        oldValue: '$oldValue minutes',
+        newValue: '$minutes minutes',
+      );
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -74,9 +81,18 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveBreakTime(int minutes) async {
+    final oldValue = _breakTimeMinutes;
     try {
       await _prefs.setInt('breakTime', minutes);
       setState(() => _breakTimeMinutes = minutes);
+      
+      // ✅ แจ้งเตือน Setting Changed
+      await NotificationService().notifySettingChanged(
+        settingName: 'Break Time',
+        oldValue: '$oldValue minutes',
+        newValue: '$minutes minutes',
+      );
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -129,21 +145,6 @@ class _SettingsPageState extends State<SettingsPage> {
       await _prefs.setBool('vibration', enabled);
       if (mounted) {
         setState(() => _vibrationEnabled = enabled);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving settings: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _saveAutoStartNextSession(bool enabled) async {
-    try {
-      await _prefs.setBool('autoStartNextSession', enabled);
-      if (mounted) {
-        setState(() => _autoStartNextSession = enabled);
       }
     } catch (e) {
       if (mounted) {
@@ -208,20 +209,19 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 20),
             SingleChildScrollView(
               child: Column(
-                children: [15, 20, 25, 30, 45, 60]
-                    .map(
-                      (minutes) => ListTile(
-                        title: Text('$minutes minutes'),
-                        selected: _focusTimeMinutes == minutes,
-                        selectedTileColor:
-                            Theme.of(context).primaryColor.withOpacity(0.3),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _saveFocusTime(minutes);
-                        },
-                      ),
-                    )
-                    .toList(),
+                children: [5, 10, 15, 20, 25, 30, 45, 60]  // ✅ เพิ่ม 5 และ 10
+                  .map(
+                    (minutes) => ListTile(
+                      title: Text('$minutes minutes'),
+                      selected: _focusTimeMinutes == minutes,
+                      selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.3),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _saveFocusTime(minutes);
+                      },
+                    ),
+                  )
+                  .toList(),
               ),
             ),
           ],
@@ -248,20 +248,19 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 20),
             SingleChildScrollView(
               child: Column(
-                children: [3, 5, 10, 15, 20]
-                    .map(
-                      (minutes) => ListTile(
-                        title: Text('$minutes minutes'),
-                        selected: _breakTimeMinutes == minutes,
-                        selectedTileColor:
-                            Theme.of(context).primaryColor.withOpacity(0.3),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _saveBreakTime(minutes);
-                        },
-                      ),
-                    )
-                    .toList(),
+                children: [1, 3, 5, 10, 15, 20]  // ✅ เพิ่ม 1 นาที
+                  .map(
+                    (minutes) => ListTile(
+                      title: Text('$minutes minutes'),
+                      selected: _breakTimeMinutes == minutes,
+                      selectedTileColor: Theme.of(context).primaryColor.withOpacity(0.3),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _saveBreakTime(minutes);
+                      },
+                    ),
+                  )
+                  .toList(),
               ),
             ),
           ],
@@ -270,96 +269,68 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-void _showNotificationsDialog() {
-  showDialog(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setStateDialog) {
-        return AlertDialog(
-          title: const Text('Notification Settings'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ✅ Enable Notifications
-              SwitchListTile(
-                title: const Text('Enable Notifications'),
-                value: _notificationsEnabled,
-                onChanged: (value) {
-                  setStateDialog(() {
-                    _notificationsEnabled = value;
-                    _saveNotifications(value);
-                  });
-                },
-              ),
-              const Divider(),
-              
-              // ✅ Sound - ลบ enabled ออก
-              SwitchListTile(
-                title: const Text('Sound'),
-                subtitle: const Text('Play sound on notification'),
-                value: _soundEnabled,
-                onChanged: _notificationsEnabled
-                    ? (value) {
-                        setStateDialog(() {
-                          _soundEnabled = value;
-                          _saveSound(value);
-                        });
-                      }
-                    : null,
-              ),
-              
-              // ✅ Vibration - ลบ enabled ออก
-              SwitchListTile(
-                title: const Text('Vibration'),
-                subtitle: const Text('Vibrate on notification'),
-                value: _vibrationEnabled,
-                onChanged: _notificationsEnabled
-                    ? (value) {
-                        setStateDialog(() {
-                          _vibrationEnabled = value;
-                          _saveVibration(value);
-                        });
-                      }
-                    : null,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-}
-
-  void _showAdvancedSettingsDialog() {
+  void _showNotificationsDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Advanced Settings'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SwitchListTile(
-              title: const Text('Auto-start Next Session'),
-              subtitle: const Text('Automatically start break after focus'),
-              value: _autoStartNextSession,
-              onChanged: (value) {
-                _saveAutoStartNextSession(value);
-              },
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Notification Settings'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ✅ Enable Notifications
+                SwitchListTile(
+                  title: const Text('Enable Notifications'),
+                  value: _notificationsEnabled,
+                  onChanged: (value) {
+                    setStateDialog(() {
+                      _notificationsEnabled = value;
+                      _saveNotifications(value);
+                    });
+                  },
+                ),
+                const Divider(),
+                
+                // ✅ Sound
+                SwitchListTile(
+                  title: const Text('Sound'),
+                  subtitle: const Text('Play sound on notification'),
+                  value: _soundEnabled,
+                  onChanged: _notificationsEnabled
+                      ? (value) {
+                          setStateDialog(() {
+                            _soundEnabled = value;
+                            _saveSound(value);
+                          });
+                        }
+                      : null,
+                ),
+                
+                // ✅ Vibration
+                SwitchListTile(
+                  title: const Text('Vibration'),
+                  subtitle: const Text('Vibrate on notification'),
+                  value: _vibrationEnabled,
+                  onChanged: _notificationsEnabled
+                      ? (value) {
+                          setStateDialog(() {
+                            _vibrationEnabled = value;
+                            _saveVibration(value);
+                          });
+                        }
+                      : null,
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -599,15 +570,6 @@ void _showNotificationsDialog() {
                 title: 'Break Time',
                 subtitle: '$_breakTimeMinutes minutes per break',
                 onTap: _showBreakTimeDialog,
-                isDarkMode: isDarkMode,
-              ),
-              const SizedBox(height: 12),
-
-              _buildSettingCard(
-                icon: Icons.settings_suggest,
-                title: 'Advanced Settings',
-                subtitle: 'Auto-start next session: $_autoStartNextSession',
-                onTap: _showAdvancedSettingsDialog,
                 isDarkMode: isDarkMode,
               ),
               const SizedBox(height: 24),

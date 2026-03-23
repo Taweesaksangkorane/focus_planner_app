@@ -23,7 +23,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
   Priority _selectedPriority = Priority.none;
   bool _autoPriority = true;
   late int _focusTime;
-  List<ReminderModel> _reminders = []; 
+  List<ReminderModel> _reminders = [];
 
   final categories = ['Work', 'Reading', 'Personal', 'Health'];
   bool _isLoading = true;
@@ -195,6 +195,21 @@ class _AddTaskPageState extends State<AddTaskPage> {
     });
   }
 
+  // ✅ ดึงเวลาจาก reminder ทั้งหมด
+  List<DateTime> _getReminderDateTimes() {
+    if (_selectedDate == null) return [];
+
+    return _reminders.map((reminder) {
+      return DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        reminder.time.hour,
+        reminder.time.minute,
+      );
+    }).toList();
+  }
+
   void _createTask() {
     if (!formKey.currentState!.validate()) return;
 
@@ -212,8 +227,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
       priority: _selectedPriority,
       isCompleted: false,
       reminders: _reminders,
+      // ✅ เพิ่ม reminder times
+      reminderTimes: _getReminderDateTimes(),
 
-      // ✅ ต้องเพิ่ม 3 ตัวนี้
       userId: user.uid,
       createdAt: now,
       updatedAt: now,
@@ -596,6 +612,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
                 // ✅ Focus Time Setting
                 Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: isDarkMode
@@ -606,49 +623,23 @@ class _AddTaskPageState extends State<AddTaskPage> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Focus Time',
-                            style: TextStyle(
-                              color: isDarkMode ? Colors.white : Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$_focusTime minutes (from settings)',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Focus Time',
+                        style: TextStyle(
+                          color: isDarkMode ? Colors.white : Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
-                      GestureDetector(
-                        onTap: _showFocusTimeDialog,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'Change',
-                            style: TextStyle(
-                              color: Colors.black87,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$_focusTime minutes (from settings)',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -660,13 +651,38 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Reminders',
-                      style: TextStyle(
-                        color: isDarkMode ? Colors.white : Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Reminders',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        if (_reminders.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor
+                                  .withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${_reminders.length} reminder${_reminders.length > 1 ? 's' : ''}',
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     // ✅ กรอบหลัก - คลิกทั้งกรอบเพิ่มเวลา
@@ -689,7 +705,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           ),
                           child: Center(
                             child: Text(
-                              '+ Set a reminder.',
+                              '+ Set a reminder',
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.5),
                                 fontSize: 14,
@@ -702,7 +718,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       Column(
                         children: [
                           // ✅ List reminders ที่มีอยู่
-                          ..._reminders.map((reminder) {
+                          ..._reminders.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final reminder = entry.value;
                             return Container(
                               margin: const EdgeInsets.only(bottom: 8),
                               padding: const EdgeInsets.symmetric(
@@ -719,28 +737,45 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Row(
                                     children: [
                                       Icon(
                                         Icons.notifications_active,
-                                        color: Theme.of(context).primaryColor,
+                                        color:
+                                            Theme.of(context).primaryColor,
                                         size: 18,
                                       ),
                                       const SizedBox(width: 12),
-                                      Text(
-                                        reminder.time.format(context),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Reminder ${index + 1}',
+                                            style: TextStyle(
+                                              color: Colors.white
+                                                  .withOpacity(0.6),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          Text(
+                                            reminder.time.format(context),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
                                   GestureDetector(
-                                    onTap: () => _removeReminder(reminder.id),
+                                    onTap: () =>
+                                        _removeReminder(reminder.id),
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
@@ -758,7 +793,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               ),
                             );
                           }).toList(),
-                          
+
                           // ✅ Reminder baru - คลิกทั้งกรอบเพิ่มเวลาใหม่
                           const SizedBox(height: 8),
                           GestureDetector(
@@ -781,14 +816,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 children: [
                                   Icon(
                                     Icons.add_circle_outline,
-                                    color: Theme.of(context).primaryColor,
+                                    color:
+                                        Theme.of(context).primaryColor,
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Add Reminder',
                                     style: TextStyle(
-                                      color: Theme.of(context).primaryColor,
+                                      color:
+                                          Theme.of(context).primaryColor,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -801,6 +838,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       ),
                   ],
                 ),
+                const SizedBox(height: 20),
 
                 // ✅ Action Buttons
                 Row(

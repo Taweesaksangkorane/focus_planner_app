@@ -23,7 +23,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? validateEmail(String? v) {
     if (v == null || v.trim().isEmpty) return 'กรุณากรอกอีเมล';
     final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
-    if (!emailRegex.hasMatch(v.trim())) return 'อีเมลไม่ถูกต้อง';
+    if (!emailRegex.hasMatch(v.trim())) return 'อีเมลไม่ถูกต้อง กรุณาใส่ @gmail.com เท่านั้น';
     return null;
   }
 

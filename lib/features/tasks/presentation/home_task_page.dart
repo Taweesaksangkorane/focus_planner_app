@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:focus_planner_app/core/services/notification_service.dart';
+import 'package:focus_planner_app/features/notifications/data/notification_repository.dart';
+import 'package:focus_planner_app/features/notifications/presentation/notifications_page.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../data/task_model.dart';
@@ -9,6 +12,7 @@ import 'task_detail_page.dart';
 import 'profile_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../../core/services/task_reminder_manager.dart';
+import 'package:flutter/services.dart';
 
 class HomeTaskPage extends StatefulWidget {
   const HomeTaskPage({Key? key}) : super(key: key);
@@ -25,13 +29,11 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
   String _selectedFilter = 'All Task';
 
   final categories = ['All Task', 'Work', 'Reading', 'Personal', 'Health'];
-
+    
   @override
   void initState() {
     super.initState();
     _initializeRepository();
-    // ✅ ตรวจสอบ Task ที่กำลังจะถึงเวลา
-    _checkTaskReminders();
   }
 
   // ✅ Initialize Repository dengan userId
@@ -54,12 +56,54 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
   Future<void> _checkTaskReminders() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-
       if (user != null) {
         await TaskReminderManager().checkAndNotifyUpcomingTasks(user.uid);
       }
     } catch (e) {
       debugPrint("Reminder error: $e");
+    }
+  }
+
+  // ✅ ตรวจสอบ Focus Time Reminders
+  Future<void> _checkFocusTimeReminders() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await TaskReminderManager().checkFocusTimeReminders(user.uid);
+      }
+    } catch (e) {
+      debugPrint('Error checking focus time reminders: $e');
+    }
+  }
+
+  // ✅ ตรวจสอบ High Priority Tasks
+  Future<void> _checkHighPriorityTasks() async {
+    try {
+      final now = DateTime.now();
+
+      for (var task in tasks) {
+        // ✅ ถ้าเป็น High Priority และใกล้กำหนด
+        if (task.priority == Priority.high && 
+            !task.isCompleted &&
+            task.dueDate != null) {
+          
+          final daysUntilDue = task.dueDate!.difference(now).inDays;
+          
+          // ✅ แจ้งเตือนถ้า < 3 วัน
+          if (daysUntilDue <= 3 && daysUntilDue >= 0) {
+            final hasNotified = task.metadata?['highPriorityNotified'] ?? false;
+            
+            if (!hasNotified) {
+              await NotificationService().notifyHighPriorityTask(
+                taskTitle: task.title,
+                dueDate: task.dueDate!,
+              );
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking high priority tasks: $e');
     }
   }
 
@@ -74,7 +118,13 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
         isLoading = false;
       });
 
-      // ✅ ตรวจ reminder หลังโหลด tasks
+      // ✅ ตรวจสอบ Focus Time Reminders
+      await _checkFocusTimeReminders();
+
+      // ✅ ตรวจสอบ High Priority Tasks
+      await _checkHighPriorityTasks();
+
+      // ✅ ตรวจสอบ Task Reminders
       await _checkTaskReminders();
 
     } catch (e) {
@@ -120,8 +170,30 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
     return DateFormat('dd/MM/yyyy').format(now);
   }
 
+  // ✅ Get unread notifications count
+  Future<int> _getUnreadNotificationsCount() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final repository = NotificationRepositoryImpl(userId: user.uid);
+        return await repository.getUnreadCount();
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('Error getting unread count: $e');
+      return 0;
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+    );
+
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -145,12 +217,17 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          const SizedBox(),
-          _buildHomeView(isDarkMode),
-          const ProfilePage(),
+          const SizedBox(),                    // ✅ 0. Focus (ยังไม่ใช้)
+          _buildHomeView(isDarkMode),          // ✅ 1. Home
+          NotificationsPage(
+            onBack: () {
+              setState(() => _selectedIndex = 1);
+            },
+          ),                                   // ✅ 2. Notifications
+          const ProfilePage(),                 // ✅ 3. Profile
         ],
       ),
-      floatingActionButton: _selectedIndex == 1
+      floatingActionButton: _selectedIndex == 1  // ✅ เก็บเดิม (Home tab)
           ? FloatingActionButton(
               onPressed: () {
                 Navigator.push(
@@ -208,6 +285,10 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: 'Notifications',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',
           ),
@@ -233,7 +314,9 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
       child: SingleChildScrollView(
         child: Column(
           children: [
-            _buildHeaderSection(isDarkMode),
+            _buildDecorationSection(isDarkMode),
+            const SizedBox(height: 20),
+            _buildNotificationsPreview(isDarkMode),
             const SizedBox(height: 20),
             _buildFilterButtons(isDarkMode),
             const SizedBox(height: 20),
@@ -245,72 +328,136 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
     );
   }
 
-  Widget _buildHeaderSection(bool isDarkMode) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Task List',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
+  // ✅ Notifications Preview Section
+  Widget _buildNotificationsPreview(bool isDarkMode) {
+    return FutureBuilder<int>(
+      future: _getUnreadNotificationsCount(),
+      builder: (context, snapshot) {
+        final unreadCount = snapshot.data ?? 0;
+
+        if (unreadCount == 0) {
+          return const SizedBox.shrink();
+        }
+
+        return GestureDetector(
+          onTap: () {
+            setState(() => _selectedIndex = 2);
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
               color: isDarkMode
-                  ? Colors.white
-                  : const Color.fromARGB(255, 252, 251, 251),
+                  ? Colors.red.withOpacity(0.2)
+                  : Colors.red.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDarkMode
+                    ? Colors.red.withOpacity(0.5)
+                    : Colors.red.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'You have $unreadCount new notification${unreadCount > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tap to view all',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDarkMode
+                              ? Colors.white.withOpacity(0.6)
+                              : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.red.withOpacity(0.7),
+                  size: 16,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Today, ${_getTodayDate()}',
-            style: TextStyle(
-              fontSize: 14,
-              color: isDarkMode
-                  ? Colors.white.withOpacity(0.7)
-                  : const Color.fromARGB(179, 247, 246, 245),
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildDecorationSection(isDarkMode),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildDecorationSection(bool isDarkMode) {
     return Container(
-      height: 120,
+      margin: const EdgeInsets.only(top: 20),
+      height: 140,
+      width: double.infinity,
       decoration: BoxDecoration(
         color: isDarkMode
-            ? const Color.fromARGB(255, 41, 28, 114).withOpacity(0.6)
-            : const Color.fromARGB(255, 209, 207, 207),
+            ? const Color(0xFF2A1B5E)
+            : const Color(0xFFFFB74D),
         borderRadius: BorderRadius.circular(24),
-        border: isDarkMode
-            ? Border.all(
-                color: Colors.white.withOpacity(0.2),
-              )
-            : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Stack(
         children: [
           Positioned(
-            top: -10,
+            top: 0,
             left: 0,
             right: 0,
             child: CustomPaint(
-              size: const Size(double.infinity, 50),
+              size: const Size(double.infinity, 60),
               painter: WavePainter(isDarkMode: isDarkMode),
             ),
           ),
           Positioned(
+            left: 20,
+            top: 25,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Task List',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Today, ${_getTodayDate()}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Positioned(
             right: 20,
             bottom: 10,
             child: Text(
@@ -318,7 +465,6 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
               style: TextStyle(fontSize: 85),
             ),
           ),
-          
         ],
       ),
     );
@@ -417,32 +563,36 @@ class WavePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final gradient = LinearGradient(
+      colors: isDarkMode
+          ? [
+              const Color(0xFF1A1245),
+              const Color(0xFF2A1B5E),
+            ]
+          : [
+              const Color(0xFFFFA726),
+              const Color(0xFFFFE0B2),
+            ],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    );
+
     final paint = Paint()
-      ..color = isDarkMode
-          ? const Color.fromARGB(255, 41, 28, 114)
-          : const Color(0xFF221B2D)
-      ..style = PaintingStyle.fill;
+      ..shader = gradient.createShader(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+      );
 
     final path = Path();
-    path.moveTo(0, 20);
-    path.quadraticBezierTo(size.width * 0.25, 0, size.width * 0.5, 20);
-    path.quadraticBezierTo(size.width * 0.75, 40, size.width, 20);
+    path.moveTo(0, 30);
+    path.quadraticBezierTo(size.width * 0.25, 0, size.width * 0.5, 30);
+    path.quadraticBezierTo(size.width * 0.75, 60, size.width, 30);
     path.lineTo(size.width, 0);
     path.lineTo(0, 0);
     path.close();
 
     canvas.drawPath(path, paint);
-
-    final circlePaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(Offset(size.width * 0.2, 15), 4, circlePaint);
-    canvas.drawCircle(Offset(size.width * 0.4, 25), 6, circlePaint);
-    canvas.drawCircle(Offset(size.width * 0.6, 10), 5, circlePaint);
-    canvas.drawCircle(Offset(size.width * 0.8, 20), 4, circlePaint);
   }
 
   @override
-  bool shouldRepaint(WavePainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

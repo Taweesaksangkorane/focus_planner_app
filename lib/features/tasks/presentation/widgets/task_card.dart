@@ -20,7 +20,7 @@ class TaskCardNew extends StatelessWidget {
       case 'reading':
         return const Color.fromARGB(255, 109, 143, 231);  
       case 'personal':
-        return const Color.fromARGB(255, 123, 219, 194);  
+        return const Color.fromARGB(255, 183, 92, 235);  
       case 'health':
         return const Color.fromARGB(255, 89, 221, 111);  
       default:

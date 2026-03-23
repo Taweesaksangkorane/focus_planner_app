@@ -3,19 +3,24 @@ import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'take_a_break_page.dart';
 import 'completed_page.dart';
+import '../../../core/services/notification_service.dart';
 
 class StayFocusedPage extends StatefulWidget {
   final String taskTitle;
   final int initialMinutes;
   final String taskId;
-  final int? remainingSeconds;  // ✅ เพิ่ม parameter
+  final int? remainingSeconds;
+  final int sessionCount;
+  final int totalSessions;
 
   const StayFocusedPage({
     Key? key,
     required this.taskTitle,
     required this.taskId,
     this.initialMinutes = 25,
-    this.remainingSeconds,  // ✅ เพิ่ม parameter
+    this.remainingSeconds,
+    this.sessionCount = 1,
+    this.totalSessions = 1,
   }) : super(key: key);
 
   @override
@@ -28,15 +33,29 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
   late Timer _timer;
   bool _isPaused = false;
   late int _breakTime;
+  late int _currentSessionCount;
+  bool _notificationShown = false;  // ✅ เพิ่ม flag
 
   @override
   void initState() {
     super.initState();
-    // ✅ ใช้ remainingSeconds ถ้ามี ไม่งั้นใช้ initialMinutes
-    _remainingSeconds = widget.remainingSeconds ?? (widget.initialMinutes * 60);
+    _currentSessionCount = widget.sessionCount;
+    
+    // ✅ ถ้าเป็น session 1 ให้ใช้ initialMinutes
+    // ถ้า session > 1 ให้ reset เป็น initialMinutes ใหม่
+    if (widget.sessionCount == 1) {
+      _remainingSeconds = widget.remainingSeconds ?? (widget.initialMinutes * 60);
+    } else {
+      // ✅ Session ต่อไป: reset เป็นเวลาใหม่
+      _remainingSeconds = widget.initialMinutes * 60;
+    }
+    
     _totalFocusSeconds = widget.initialMinutes * 60;
     _loadBreakTimeFromSettings();
     _startTimer();
+    
+    // ✅ แจ้งเตือนเมื่อเข้าหน้า Focus
+    _notifyFocusTimeStarted();
   }
 
   Future<void> _loadBreakTimeFromSettings() async {
@@ -49,6 +68,21 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
       setState(() {
         _breakTime = 5;
       });
+    }
+  }
+
+  // ✅ แจ้งเตือนเมื่อเริ่มโฟกัส
+  Future<void> _notifyFocusTimeStarted() async {
+    try {
+      if (!_notificationShown) {
+        await NotificationService().notifyFocusTimeStarted(
+          taskTitle: widget.taskTitle,
+          focusMinutes: widget.initialMinutes,
+        );
+        _notificationShown = true;
+      }
+    } catch (e) {
+      debugPrint('Error notifying focus time started: $e');
     }
   }
 
@@ -71,9 +105,17 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
     setState(() => _isPaused = !_isPaused);
   }
 
+  // ✅ Focus หมด → auto-go Break (ไม่ถาม)
   void _navigateToBreak() {
     _timer.cancel();
-    // ✅ ส่ง remainingSeconds ไปด้วย
+
+    // ✅ แจ้งเตือน Focus Complete
+    NotificationService().notifyFocusComplete(
+      taskTitle: widget.taskTitle,
+      sessionCount: _currentSessionCount,
+      totalSessions: widget.totalSessions,
+    );
+  
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -81,7 +123,10 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
           breakMinutes: _breakTime,
           taskId: widget.taskId,
           taskTitle: widget.taskTitle,
-          focusRemainingSeconds: _remainingSeconds,  // ✅ ส่งค่าไป
+          focusRemainingSeconds: 0,  // ✅ ส่ง 0 (ไม่ใช้ remainingSeconds)
+          sessionCount: _currentSessionCount,
+          totalSessions: widget.totalSessions,
+          focusMinutes: widget.initialMinutes,
         ),
       ),
     );
@@ -212,6 +257,23 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
                       color: isDarkMode ? Colors.white : Colors.black87,
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  // ✅ Session Counter
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Session $_currentSessionCount of ${widget.totalSessions}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 60),
                   // ✅ Action Buttons
                   Padding(
@@ -304,7 +366,10 @@ class _StayFocusedPageState extends State<StayFocusedPage> {
                                     breakMinutes: _breakTime,
                                     taskId: widget.taskId,
                                     taskTitle: widget.taskTitle,
-                                    focusRemainingSeconds: _remainingSeconds,  // ✅ ส่งค่าไป
+                                    focusRemainingSeconds: 0,  // ✅ ส่ง 0
+                                    sessionCount: _currentSessionCount,
+                                    totalSessions: widget.totalSessions,
+                                    focusMinutes: widget.initialMinutes,
                                   ),
                                 ),
                               );
