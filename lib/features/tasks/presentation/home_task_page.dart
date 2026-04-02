@@ -4,6 +4,7 @@ import 'package:focus_planner_app/features/notifications/data/notification_repos
 import 'package:focus_planner_app/features/notifications/presentation/notifications_page.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/task_model.dart';
 import '../data/task_repository.dart';
 import 'add_task_page.dart';
@@ -53,10 +54,27 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
     }
   }
 
+  // ✅ ตรวจสอบ notification settings
+  Future<bool> _isNotificationsEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('notificationsEnabled') ?? true;
+    } catch (e) {
+      return true;
+    }
+  }
+
   Future<void> _checkTaskReminders() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // ✅ ตรวจสอบ settings ก่อน
+        final notificationsEnabled = await _isNotificationsEnabled();
+
+        if (!notificationsEnabled) {
+          return; // ✅ ไม่ส่งแจ้งเตือนถ้าปิดไว้
+        }
+
         await TaskReminderManager().checkAndNotifyUpcomingTasks(user.uid);
       }
     } catch (e) {
@@ -69,6 +87,13 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
+        // ✅ ตรวจสอบ settings ก่อน
+        final notificationsEnabled = await _isNotificationsEnabled();
+
+        if (!notificationsEnabled) {
+          return; // ✅ ไม่ส่งแจ้งเตือนถ้าปิดไว้
+        }
+
         await TaskReminderManager().checkFocusTimeReminders(user.uid);
       }
     } catch (e) {
@@ -79,6 +104,13 @@ class _HomeTaskPageState extends State<HomeTaskPage> {
   // ✅ ตรวจสอบ High Priority Tasks
   Future<void> _checkHighPriorityTasks() async {
     try {
+      // ✅ ตรวจสอบ settings ก่อน
+      final notificationsEnabled = await _isNotificationsEnabled();
+
+      if (!notificationsEnabled) {
+        return; // ✅ ไม่ส่งแจ้งเตือนถ้าปิดไว้
+      }
+
       final now = DateTime.now();
 
       for (var task in tasks) {

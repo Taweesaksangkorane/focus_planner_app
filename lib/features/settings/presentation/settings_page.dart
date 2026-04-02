@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../core/services/notification_service.dart';
-import '../../../core/services/notification_service.dart';
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
 
@@ -35,7 +35,7 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _focusTimeMinutes = _prefs.getInt('focusTime') ?? 25;
         _breakTimeMinutes = _prefs.getInt('breakTime') ?? 5;
-        _notificationsEnabled = _prefs.getBool('notifications') ?? true;
+        _notificationsEnabled = _prefs.getBool('notificationsEnabled') ?? true;
         _soundEnabled = _prefs.getBool('sound') ?? true;
         _vibrationEnabled = _prefs.getBool('vibration') ?? true;
         _isLoading = false;
@@ -51,12 +51,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveFocusTime(int minutes) async {
-    final oldValue = _focusTimeMinutes;  // ✅ เพิ่มบรรทัดนี้
+    final oldValue = _focusTimeMinutes;
     try {
       await _prefs.setInt('focusTime', minutes);
       setState(() => _focusTimeMinutes = minutes);
       
-      // ✅ เพิ่มบรรทัดเหล่านี้
       await NotificationService().notifySettingChanged(
         settingName: 'Focus Time',
         oldValue: '$oldValue minutes',
@@ -86,7 +85,6 @@ class _SettingsPageState extends State<SettingsPage> {
       await _prefs.setInt('breakTime', minutes);
       setState(() => _breakTimeMinutes = minutes);
       
-      // ✅ แจ้งเตือน Setting Changed
       await NotificationService().notifySettingChanged(
         settingName: 'Break Time',
         oldValue: '$oldValue minutes',
@@ -110,9 +108,10 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  // ✅ Save Notifications
   Future<void> _saveNotifications(bool enabled) async {
     try {
-      await _prefs.setBool('notifications', enabled);
+      await _prefs.setBool('notificationsEnabled', enabled);
       if (mounted) {
         setState(() => _notificationsEnabled = enabled);
       }
@@ -209,7 +208,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 20),
             SingleChildScrollView(
               child: Column(
-                children: [5, 10, 15, 20, 25, 30, 45, 60]  // ✅ เพิ่ม 5 และ 10
+                children: [5, 10, 15, 20, 25, 30, 45, 60]
                   .map(
                     (minutes) => ListTile(
                       title: Text('$minutes minutes'),
@@ -248,7 +247,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 20),
             SingleChildScrollView(
               child: Column(
-                children: [1, 3, 5, 10, 15, 20]  // ✅ เพิ่ม 1 นาที
+                children: [1, 3, 5, 10, 15, 20]
                   .map(
                     (minutes) => ListTile(
                       title: Text('$minutes minutes'),
@@ -269,19 +268,21 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // ✅ Show Notifications Dialog
   void _showNotificationsDialog() {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) {
           return AlertDialog(
-            title: const Text('Notification Settings'),
+            title: const Text('Notifications'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // ✅ Enable Notifications
                 SwitchListTile(
                   title: const Text('Enable Notifications'),
+                  subtitle: const Text('Receive notifications and reminders'),
                   value: _notificationsEnabled,
                   onChanged: (value) {
                     setStateDialog(() {
@@ -580,7 +581,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               _buildSettingCard(
                 icon: Icons.notifications_rounded,
-                title: 'Notification Settings',
+                title: 'Notifications',
                 subtitle: _notificationsEnabled
                     ? 'Enabled'
                     : 'Disabled',

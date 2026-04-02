@@ -1,5 +1,7 @@
 import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/notifications/data/notification_model.dart';
 import '../../features/notifications/data/notification_repository.dart';
 
@@ -7,6 +9,7 @@ class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
 
   late NotificationRepository _repository;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   factory NotificationService() {
     return _instance;
@@ -16,6 +19,64 @@ class NotificationService {
 
   void initialize(NotificationRepository repository) {
     _repository = repository;
+  }
+
+  // ✅ Helper method - ตรวจสอบว่า notification เปิดหรือปิด
+  Future<bool> _isNotificationEnabled(String userId) async {
+    try {
+      // เช็ค SharedPreferences ก่อน (เร็ว)
+      final prefs = await SharedPreferences.getInstance();
+      final localEnabled = prefs.getBool('notificationsEnabled');
+      
+      if (localEnabled != null) {
+        return localEnabled;
+      }
+
+      // ถ้าไม่มีใน local ให้เช็ค Firestore
+      final doc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      return doc.data()?['notificationsEnabled'] ?? true;
+    } catch (e) {
+      print('Error checking notification status: $e');
+      return true; // default enable
+    }
+  }
+
+  // ✅ Helper method - บันทึกแจ้งเตือน (ไม่ส่ง device notification)
+  Future<void> _saveNotificationOnly(NotificationModel notification) async {
+    try {
+      await _repository.addNotification(notification);
+      print('✅ Notification saved: ${notification.title}');
+    } catch (e) {
+      print('❌ Error saving notification: $e');
+    }
+  }
+
+  // ✅ Helper method - บันทึก + ส่ง device notification (ถ้าเปิด)
+  Future<void> _saveAndSendNotification(
+    NotificationModel notification,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // ✅ ตรวจสอบ settings ก่อนบันทึก
+      final isEnabled = await _isNotificationEnabled(user.uid);
+
+      if (isEnabled) {
+        // ✅ บันทึก + ส่ง
+        await _repository.addNotification(notification);
+        print('✅ Notification saved and sent: ${notification.title}');
+      } else {
+        // ❌ ถ้าปิดแจ้งเตือน ไม่ทำอะไรเลย
+        print('⛔ Notification blocked (disabled in settings): ${notification.title}');
+      }
+    } catch (e) {
+      print('❌ Error with notification: $e');
+    }
   }
 
   // ✅ Reminder Notification (10 นาทีก่อน)
@@ -42,7 +103,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying reminder 10 min before: $e');
     }
@@ -74,7 +135,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying scheduled reminder: $e');
     }
@@ -104,7 +165,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying focus complete: $e');
     }
@@ -132,7 +193,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying break complete: $e');
     }
@@ -162,13 +223,13 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying task due soon: $e');
     }
   }
 
-  // ✅ Motivational
+  // ✅ Motivational (บันทึกเสมอ ไม่ส่ง device notification)
   Future<void> notifyMotivational({
     String? customMessage,
   }) async {
@@ -198,7 +259,7 @@ class NotificationService {
         createdAt: DateTime.now(),
       );
 
-      await _repository.addNotification(notification);
+      await _saveNotificationOnly(notification);
     } catch (e) {
       print('Error notifying motivational: $e');
     }
@@ -225,13 +286,13 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying achievement: $e');
     }
   }
 
-  // ✅ Settings Changed
+  // ✅ Settings Changed (บันทึกเสมอ ไม่ส่ง device notification)
   Future<void> notifySettingChanged({
     required String settingName,
     required String oldValue,
@@ -255,7 +316,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveNotificationOnly(notification);
     } catch (e) {
       print('Error notifying setting changed: $e');
     }
@@ -285,7 +346,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying task completed: $e');
     }
@@ -300,25 +361,27 @@ class NotificationService {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      final daysUntilDue = dueDate.difference(DateTime.now()).inDays;
+
       final notification = NotificationModel(
         id: const Uuid().v4(),
         userId: user.uid,
-        type: NotificationType.motivational,
+        type: NotificationType.taskDueSoon,
         title: '🔴 High Priority Task!',
-        message: '"$taskTitle" is a high priority task and will end soon! ⚡',
+        message: '"$taskTitle" is due in $daysUntilDue days. High priority alert! ⚡',
         createdAt: DateTime.now(),
         data: {
           'taskTitle': taskTitle,
           'dueDate': dueDate.toIso8601String(),
+          'daysUntilDue': daysUntilDue,
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying high priority task: $e');
     }
   }
-
 
   // ✅ Task Due in 5 Days
   Future<void> notifyTaskDue5Days({
@@ -344,7 +407,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying task due 5 days: $e');
     }
@@ -374,7 +437,7 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying task due 3 days: $e');
     }
@@ -404,57 +467,124 @@ class NotificationService {
         },
       );
 
-      await _repository.addNotification(notification);
+      await _saveAndSendNotification(notification);
     } catch (e) {
       print('Error notifying task due 1 day: $e');
     }
   }
 
-    // ✅ Focus Time Started - แจ้งเตือนเมื่อถึงเวลาเริ่มโฟกัส
-    Future<void> notifyFocusTimeStarted({
-      required String taskTitle,
-      required int focusMinutes,
-    }) async {
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) return;
+  // ✅ Focus Time Started
+  Future<void> notifyFocusTimeStarted({
+    required String taskTitle,
+    required int focusMinutes,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-        final notification = NotificationModel(
-          id: const Uuid().v4(),
-          userId: user.uid,
-          type: NotificationType.taskReminderSet,
-          title: '🎯 Time to Focus!',
-          message: 'Ready to start? "$taskTitle" is waiting for your $focusMinutes minute focus session! 💪',
-          createdAt: DateTime.now(),
-          data: {
-            'taskTitle': taskTitle,
-            'focusMinutes': focusMinutes,
-          },
-        );
+      final notification = NotificationModel(
+        id: const Uuid().v4(),
+        userId: user.uid,
+        type: NotificationType.taskReminderSet,
+        title: '🎯 Time to Focus!',
+        message: 'Ready to start? "$taskTitle" is waiting for your $focusMinutes minute focus session! 💪',
+        createdAt: DateTime.now(),
+        data: {
+          'taskTitle': taskTitle,
+          'focusMinutes': focusMinutes,
+        },
+      );
 
-        await _repository.addNotification(notification);
-      } catch (e) {
-        print('Error notifying focus time started: $e');
-      }
+      await _saveAndSendNotification(notification);
+    } catch (e) {
+      print('Error notifying focus time started: $e');
     }
+  }
 
-    Future<void> notifyTaskOverdue({
+  // ✅ Task Overdue
+  Future<void> notifyTaskOverdue({
     required String taskTitle,
     required DateTime dueDate,
   }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-    final notification = NotificationModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      userId: user.uid,
-      type: NotificationType.taskDueSoon,
-      title: '⚠️ Task Overdue',
-      message: '$taskTitle is overdue!',
-      createdAt: DateTime.now(),
-    );
+      final daysOverdue = DateTime.now().difference(dueDate).inDays;
 
-    await NotificationRepositoryImpl(userId: user.uid)
-        .addNotification(notification);
+      final notification = NotificationModel(
+        id: const Uuid().v4(),
+        userId: user.uid,
+        type: NotificationType.taskDueSoon,
+        title: '⚠️ Task Overdue!',
+        message: '"$taskTitle" is $daysOverdue day${daysOverdue > 1 ? 's' : ''} overdue! Complete it ASAP!',
+        createdAt: DateTime.now(),
+        data: {
+          'taskTitle': taskTitle,
+          'dueDate': dueDate.toIso8601String(),
+          'daysOverdue': daysOverdue,
+        },
+      );
+
+      await _saveAndSendNotification(notification);
+    } catch (e) {
+      print('Error notifying task overdue: $e');
+    }
+  }
+
+  // ✅ Break Time Started
+  Future<void> notifyBreakTimeStarted({
+    required int breakMinutes,
+    required int sessionNumber,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final notification = NotificationModel(
+        id: const Uuid().v4(),
+        userId: user.uid,
+        type: NotificationType.breakComplete,
+        title: '☕ Time for a Break!',
+        message: 'You\'ve earned a $breakMinutes minute break after session $sessionNumber! Relax and recharge! 🌟',
+        createdAt: DateTime.now(),
+        data: {
+          'breakMinutes': breakMinutes,
+          'sessionNumber': sessionNumber,
+        },
+      );
+
+      await _saveAndSendNotification(notification);
+    } catch (e) {
+      print('Error notifying break time started: $e');
+    }
+  }
+
+  // ✅ Daily Goal Reached
+  Future<void> notifyDailyGoalReached({
+    required int totalFocusTime,
+    required int tasksCompleted,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final notification = NotificationModel(
+        id: const Uuid().v4(),
+        userId: user.uid,
+        type: NotificationType.achievement,
+        title: '⭐ Daily Goal Reached!',
+        message: 'Awesome! You focused for $totalFocusTime minutes and completed $tasksCompleted tasks today!',
+        createdAt: DateTime.now(),
+        data: {
+          'totalFocusTime': totalFocusTime,
+          'tasksCompleted': tasksCompleted,
+        },
+      );
+
+      await _saveAndSendNotification(notification);
+    } catch (e) {
+      print('Error notifying daily goal reached: $e');
+    }
   }
 }
