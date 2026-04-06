@@ -46,7 +46,7 @@ dependencies:
   google_sign_in: ^6.1.0
   email_validator: ^2.1.17
   mailer: ^6.0.1
-  sign_in_with_apple: ^5.0.0
+  sign_in_with_apple: ^7.0.1
   wheel_chooser: ^1.0.0
 
   firebase_core: ^2.32.0
@@ -59,7 +59,6 @@ dependencies:
   cloud_functions: ^4.7.6
   flutter_local_notifications: ^17.1.2
   timezone: ^0.9.2
-  flutter_native_timezone: ^2.0.0
   firebase_messaging: ^14.0.0
 
 
